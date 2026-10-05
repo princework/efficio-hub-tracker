@@ -41,11 +41,6 @@
     var p = String(iso).split('-');
     return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso;
   }
-  function fmtTime(ts) {
-    if (!ts) return '';
-    try { return new Date(ts).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
-    catch (e) { return ''; }
-  }
   function uid(prefix) {
     return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
@@ -318,17 +313,6 @@
   }
   function feedbackForMilestone(mid) {
     return feedbackIds().map(function (id) { return feedback[id]; }).filter(function (f) { return f.milestoneId === mid; });
-  }
-  function timeAgo(ts) {
-    if (!ts) return '';
-    var mins = Math.round((Date.now() - ts) / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return mins + ' min' + (mins > 1 ? 's' : '') + ' ago';
-    var hrs = Math.round(mins / 60);
-    if (hrs < 24) return hrs + ' hr' + (hrs > 1 ? 's' : '') + ' ago';
-    var days = Math.round(hrs / 24);
-    if (days < 30) return days + ' day' + (days > 1 ? 's' : '') + ' ago';
-    return fmtTime(ts);
   }
 
   function allTasksFlat() {
@@ -650,7 +634,7 @@
       card.appendChild(top);
 
       card.appendChild(el('div', 'fb-msg', esc(f.message || '')));
-      card.appendChild(el('div', 'fb-meta', '— ' + esc(f.author || 'Anonymous') + ' · ' + timeAgo(f.createdAt)));
+      card.appendChild(el('div', 'fb-meta', '— ' + esc(f.author || 'Anonymous')));
 
       if (isAdmin) {
         var btns = el('div', 'fb-admin-btns');
