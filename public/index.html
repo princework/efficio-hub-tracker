@@ -50,9 +50,10 @@
 
   <div class="load-error" id="load-error" hidden></div>
 
+  <section class="stats" id="stats"></section>
+
   <!-- OVERVIEW -->
   <section class="view active" id="view-dashboard">
-    <section class="stats" id="stats"></section>
     <h2 class="section-title">Milestone Progress <span class="section-hint">— click a milestone to see its tasks</span></h2>
     <div class="chart-card">
       <div id="chart"></div>
@@ -73,15 +74,24 @@
     <div class="toolbar">
       <div class="search">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" id="search-input" placeholder="Search tasks or client feedback…" aria-label="Search tasks">
+        <input type="text" id="search-input" placeholder="Search tasks…" aria-label="Search tasks">
       </div>
-      <select class="select-filter" id="milestone-filter"><option value="all">All milestones</option></select>
-      <div class="chips" id="filter-chips">
-        <button class="chip active" data-filter="all">All</button>
-        <button class="chip" data-filter="Not Started">Not started</button>
-        <button class="chip" data-filter="In Progress">In progress</button>
-        <button class="chip" data-filter="Done">Done</button>
-      </div>
+      <select class="select-filter" id="status-filter" aria-label="Filter by status">
+        <option value="all">All Statuses</option>
+        <option value="Not Started">Not Started</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Done">Done</option>
+      </select>
+      <select class="select-filter" id="priority-filter" aria-label="Filter by priority">
+        <option value="all">All Priorities</option>
+        <option value="High">High</option>
+        <option value="Medium">Medium</option>
+        <option value="Low">Low</option>
+      </select>
+      <select class="select-filter wide" id="milestone-filter" aria-label="Filter by milestone"><option value="all">All milestones</option></select>
+      <span class="result-count" id="task-count">0 tasks</span>
+      <button class="btn ghost" id="reset-filters">Reset</button>
+      <button class="btn primary" id="add-task-btn">+ Add Task</button>
     </div>
     <div class="table-card">
       <div class="task-table-wrap">
@@ -89,11 +99,6 @@
           <thead><tr><th>S.No</th><th>Milestone</th><th>Task</th><th>Status</th><th>Priority</th><th>Start</th><th>Client Feedback</th><th></th></tr></thead>
           <tbody id="task-tbody"></tbody>
         </table>
-      </div>
-      <div class="add-task-row">
-        <select class="m-select" id="add-task-milestone"></select>
-        <input type="text" id="add-task-input" placeholder="Add a task…">
-        <button class="btn small primary" id="add-task-btn">+ Add</button>
       </div>
     </div>
   </section>

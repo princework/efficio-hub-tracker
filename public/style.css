@@ -112,7 +112,7 @@ button { font-family: inherit; }
 .main { flex: 1 1 auto; min-width: 0; padding: 22px 20px 60px; }
 .view { display: none; }
 .view.active { display: block; }
-.section-title { font-size: 24px; font-weight: 800; margin: 30px 0 14px; }
+.section-title { font-size: 24px; font-weight: 800; margin: 4px 0 14px; }
 .section-hint { font-size: 15px; font-weight: 500; color: var(--ink-faint); }
 .toolbar-note { font-size: 14.5px; color: var(--ink-soft); }
 
@@ -137,7 +137,8 @@ button { font-family: inherit; }
 }
 
 /* ---------------- stat tiles ---------------- */
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 12px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.stats[hidden] { display: none; }
 .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px 18px; box-shadow: var(--shadow); }
 .stat .l { font-size: 13.5px; color: var(--ink-soft); font-weight: 500; }
 .stat .n { font-size: 32px; font-weight: 800; line-height: 1.15; margin-top: 4px; }
@@ -181,10 +182,9 @@ button { font-family: inherit; }
 .search input:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
 .search svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); opacity: .5; pointer-events: none; }
 .select-filter { padding: 11px 12px; border-radius: 9px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); font-size: 14px; font-family: inherit; max-width: 320px; }
-.chips { display: flex; gap: 7px; flex-wrap: wrap; }
-.chip { font-family: inherit; font-size: 13.5px; font-weight: 600; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink-soft); cursor: pointer; }
-.chip:hover { background: var(--surface-2); color: var(--ink); }
-.chip.active { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.select-filter.wide { max-width: 420px; flex: 1 1 240px; }
+.result-count { font-size: 13.5px; color: var(--ink-soft); white-space: nowrap; }
+#add-task-btn { margin-left: auto; }
 
 /* ---------------- task table ---------------- */
 .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
@@ -256,14 +256,11 @@ table.task-table th:nth-child(8), table.task-table td:nth-child(8) { width: 3%; 
 .date-input:hover { border-color: var(--ink-faint); }
 
 .row-del { text-align: right; }
-.mini-btn { width: 28px; height: 28px; border-radius: 7px; border: none; background: transparent; color: var(--ink-faint); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; }
+.mini-btn svg { display: block; }
+.mini-btn { width: 30px; height: 30px; border-radius: 7px; border: none; background: transparent; color: var(--ink-faint); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; }
 .mini-btn:hover { background: var(--surface-2); color: var(--risk); }
 .mini-btn.confirm { background: var(--risk); color: #fff; }
 
-.add-task-row { display: flex; gap: 10px; padding: 14px; align-items: center; border-top: 1px solid var(--border); background: var(--surface-2); flex-wrap: wrap; }
-.add-task-row .m-select { width: 250px; flex: 0 0 auto; }
-.add-task-row input { flex: 1 1 240px; padding: 10px 12px; border-radius: 9px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); font-family: inherit; font-size: 14.5px; }
-.add-task-row input:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
 
 .empty-state { background: var(--surface); border: 1px dashed var(--border-strong); border-radius: 14px; padding: 56px 24px; text-align: center; color: var(--ink-soft); font-size: 14.5px; }
 .empty-state h3 { font-size: 20px; margin-bottom: 10px; color: var(--ink); }
@@ -318,7 +315,7 @@ table.task-table th:nth-child(8), table.task-table td:nth-child(8) { width: 3%; 
 .role-pill button:hover { background: rgba(0,0,0,.24); }
 
 /* the client link is read-only apart from giving feedback */
-body.readonly .add-task-row,
+body.readonly #add-task-btn,
 body.readonly .row-del,
 body.readonly .m-card-actions,
 body.readonly #add-milestone-btn,

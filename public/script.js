@@ -13,6 +13,7 @@
 
   var activeView = 'dashboard';
   var statusFilter = 'all';
+  var priorityFilter = 'all';
   var milestoneFilter = 'all';
   var searchText = '';
   var STATUS_OPTS = ['Not Started', 'In Progress', 'Done'];
@@ -20,6 +21,8 @@
   var PRIORITY_OPTS = ['Low', 'Medium', 'High'];
   var PRIORITY_CLASS = { 'Low': 'pr-low', 'Medium': 'pr-medium', 'High': 'pr-high' };
   // one colour per milestone, reused across the sidebar, the table and the charts
+  var TRASH_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">' +
+    '<path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/></svg>';
   var MILESTONE_COLORS = ['#2f4a8a', '#7159ad', '#2f8a52', '#cc7a1b', '#c0392b', '#1f8fa3', '#a8468c', '#6b8a2f', '#5a6b7d'];
 
   function esc(s) {
@@ -78,6 +81,7 @@
     retry.addEventListener('click', function () { location.reload(); });
     box.appendChild(retry);
     box.hidden = false;
+    document.getElementById('stats').hidden = true;
     document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
   }
 
@@ -389,16 +393,12 @@
   /* ---------------- render: task table ---------------- */
   function populateMilestoneSelects() {
     var filterSel = document.getElementById('milestone-filter');
-    var addSel = document.getElementById('add-task-milestone');
     var curFilter = filterSel.value || 'all';
     filterSel.innerHTML = '<option value="all">All milestones</option>';
-    addSel.innerHTML = '';
     orderedMilestoneIds().forEach(function (id) {
       var m = milestones[id];
       var o1 = document.createElement('option'); o1.value = id; o1.textContent = m.name;
       filterSel.appendChild(o1);
-      var o2 = document.createElement('option'); o2.value = id; o2.textContent = m.name;
-      addSel.appendChild(o2);
     });
     if ([].slice.call(filterSel.options).some(function (o) { return o.value === curFilter; })) filterSel.value = curFilter;
   }
@@ -406,6 +406,7 @@
   function matchesFilters(mid, t) {
     if (milestoneFilter !== 'all' && mid !== milestoneFilter) return false;
     if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+    if (priorityFilter !== 'all' && (t.priority || 'Medium') !== priorityFilter) return false;
     if (searchText) {
       var hay = ((t.text || '') + ' ' + (t.clientFeedback || '')).toLowerCase();
       if (hay.indexOf(searchText) === -1) return false;
@@ -417,6 +418,7 @@
     var tbody = document.getElementById('task-tbody');
     tbody.innerHTML = '';
     var all = allTasksFlat().filter(function (row) { return matchesFilters(row.mid, row.t); });
+    document.getElementById('task-count').textContent = all.length + (all.length === 1 ? ' task' : ' tasks');
     var sno = 0;
     all.forEach(function (row) {
       sno++;
@@ -526,7 +528,7 @@
     tr.appendChild(fbTd);
 
     var delTd = document.createElement('td'); delTd.className = 'row-del';
-    var del = el('button', 'mini-btn', '✕'); del.title = 'Delete task';
+    var del = el('button', 'mini-btn', TRASH_SVG); del.title = 'Delete task';
     bindConfirm(del, function () { deleteTaskDoc(milestoneId, taskDocId); });
     delTd.appendChild(del);
     tr.appendChild(delTd);
@@ -628,6 +630,54 @@
     box.appendChild(actionsRow);
     openModal(box);
     setTimeout(function () { nameInput.focus(); }, 10);
+  }
+
+  function openAddTaskModal() {
+    var ids = orderedMilestoneIds();
+    if (!ids.length) { showToast('Add a milestone first', true); return; }
+    var box = el('div');
+    box.appendChild(el('h3', null, 'Add task'));
+
+    var msField = el('div', 'field');
+    msField.appendChild(el('label', null, 'Milestone'));
+    var msSelect = document.createElement('select');
+    ids.forEach(function (id) {
+      var o = document.createElement('option');
+      o.value = id; o.textContent = milestones[id].name;
+      if (id === milestoneFilter) o.selected = true;
+      msSelect.appendChild(o);
+    });
+    msField.appendChild(msSelect);
+    box.appendChild(msField);
+
+    var textField = el('div', 'field');
+    textField.appendChild(el('label', null, 'Task'));
+    var textInput = document.createElement('textarea');
+    textInput.placeholder = 'What needs to be done…';
+    textField.appendChild(textInput);
+    box.appendChild(textField);
+
+    var actionsRow = el('div', 'modal-actions');
+    actionsRow.appendChild(el('span'));
+    var right = el('div', 'right');
+    var cancel = el('button', 'btn ghost', 'Cancel');
+    cancel.addEventListener('click', closeModal);
+    var add = el('button', 'btn primary', 'Add task');
+    function submit() {
+      var text = textInput.value.trim();
+      if (!text) { textInput.focus(); return; }
+      createTaskDoc(msSelect.value, text);
+      closeModal();
+    }
+    add.addEventListener('click', submit);
+    textInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit();
+    });
+    right.appendChild(cancel); right.appendChild(add);
+    actionsRow.appendChild(right);
+    box.appendChild(actionsRow);
+    openModal(box);
+    setTimeout(function () { textInput.focus(); }, 10);
   }
 
   function openTaskFeedbackModal(milestoneId, taskDocId) {
@@ -843,26 +893,24 @@
       renderTaskTable();
       renderSidebarMilestones();
     });
-    document.querySelectorAll('#filter-chips .chip').forEach(function (chip) {
-      chip.addEventListener('click', function () {
-        document.querySelectorAll('#filter-chips .chip').forEach(function (c) { c.classList.remove('active'); });
-        chip.classList.add('active');
-        statusFilter = chip.dataset.filter;
-        renderTaskTable();
-      });
+    document.getElementById('status-filter').addEventListener('change', function (e) {
+      statusFilter = e.target.value;
+      renderTaskTable();
     });
-
-    var addTaskBtn = document.getElementById('add-task-btn');
-    var addTaskInput = document.getElementById('add-task-input');
-    function doAddTask() {
-      var text = addTaskInput.value.trim();
-      var mid = document.getElementById('add-task-milestone').value;
-      if (!text || !mid) return;
-      createTaskDoc(mid, text);
-      addTaskInput.value = ''; addTaskInput.focus();
-    }
-    addTaskBtn.addEventListener('click', doAddTask);
-    addTaskInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') doAddTask(); });
+    document.getElementById('priority-filter').addEventListener('change', function (e) {
+      priorityFilter = e.target.value;
+      renderTaskTable();
+    });
+    document.getElementById('reset-filters').addEventListener('click', function () {
+      searchText = ''; statusFilter = 'all'; priorityFilter = 'all'; milestoneFilter = 'all';
+      document.getElementById('search-input').value = '';
+      document.getElementById('status-filter').value = 'all';
+      document.getElementById('priority-filter').value = 'all';
+      document.getElementById('milestone-filter').value = 'all';
+      renderTaskTable();
+      renderSidebarMilestones();
+    });
+    document.getElementById('add-task-btn').addEventListener('click', openAddTaskModal);
 
     // theme: follow the system unless the user picks one here
     var themeBtn = document.getElementById('theme-btn');
@@ -875,7 +923,7 @@
       if (set) return set;
       return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
-    try { applyTheme(localStorage.getItem('efficio_theme')); } catch (e) {}
+    try { applyTheme(localStorage.getItem('efficio_theme') || 'light'); } catch (e) { applyTheme('light'); }
     themeBtn.addEventListener('click', function () {
       var next = currentTheme() === 'dark' ? 'light' : 'dark';
       applyTheme(next);
