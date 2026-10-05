@@ -11,7 +11,6 @@ const taskSchema = new mongoose.Schema({
   owner:          { type: String, default: '' },
   startDate:      { type: String, default: '' },
   dueDate:        { type: String, default: '' },
-  clientFeedback: { type: String, default: '' },
   createdAt:      { type: Number, default: () => Date.now() },
 }, { versionKey: false });
 

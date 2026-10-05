@@ -140,7 +140,8 @@
     var pill = document.getElementById('role-pill');
     pill.hidden = !isAdmin;
     if (!isAdmin) {
-      document.querySelectorAll('#task-tbody select, #task-tbody input, #task-tbody textarea, #task-tbody .cell-btn')
+      // everything is locked except the feedback bubble, which is the client's way in
+      document.querySelectorAll('#task-tbody select, #task-tbody input, #task-tbody textarea')
         .forEach(function (c) { c.disabled = true; });
     }
   }
@@ -287,6 +288,27 @@
     });
     return counts;
   }
+  function feedbackIds() {
+    return Object.keys(feedback).sort(function (a, b) { return (feedback[b].createdAt || 0) - (feedback[a].createdAt || 0); });
+  }
+  function feedbackFor(taskDocId) {
+    return feedbackIds().map(function (id) { return feedback[id]; }).filter(function (f) { return f.taskId === taskDocId; });
+  }
+  function feedbackForMilestone(mid) {
+    return feedbackIds().map(function (id) { return feedback[id]; }).filter(function (f) { return f.milestoneId === mid; });
+  }
+  function timeAgo(ts) {
+    if (!ts) return '';
+    var mins = Math.round((Date.now() - ts) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + ' min' + (mins > 1 ? 's' : '') + ' ago';
+    var hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + ' hr' + (hrs > 1 ? 's' : '') + ' ago';
+    var days = Math.round(hrs / 24);
+    if (days < 30) return days + ' day' + (days > 1 ? 's' : '') + ' ago';
+    return fmtTime(ts);
+  }
+
   function allTasksFlat() {
     var out = [];
     orderedMilestoneIds().forEach(function (mid) {
@@ -330,8 +352,9 @@
       btn.addEventListener('click', function () {
         milestoneFilter = id;
         document.getElementById('milestone-filter').value = id;
-        switchView('tasks');
+        if (activeView !== 'feedback') switchView('tasks');
         renderTaskTable();
+        renderFeedbackList();
         renderSidebarMilestones();
       });
       wrap.appendChild(btn);
@@ -365,8 +388,9 @@
     tile('active-n', 'In Progress', totals.active, share(totals.active));
     tile('todo-n', 'Pending', totals.todo, share(totals.todo));
     tile('accent-n', 'Overall %', pct + '%', pct);
-    var fbCount = Object.keys(feedback).length;
-    tile('', 'Client Feedback', fbCount, null, fbCount + (fbCount === 1 ? ' message' : ' messages') + ' total');
+    var fbIds = feedbackIds();
+    var fbOpen = fbIds.filter(function (id) { return feedback[id].status !== 'Resolved'; }).length;
+    tile('risk-n', 'Client Feedback', fbOpen, null, 'open · ' + fbIds.length + ' total');
   }
 
   function renderChart() {
@@ -435,6 +459,20 @@
       top.appendChild(actions);
       card.appendChild(top);
       card.appendChild(el('div', 'm-count', c.done + ' / ' + c.total + ' tasks done'));
+      var fbItems = feedbackForMilestone(id);
+      if (fbItems.length) {
+        var fbOpenCount = fbItems.filter(function (f) { return f.status !== 'Resolved'; }).length;
+        var fbBtn = el('button', 'm-fb-count', '💬 ' + fbItems.length + ' feedback' + (fbOpenCount ? ' · ' + fbOpenCount + ' open' : ''));
+        fbBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          milestoneFilter = id;
+          document.getElementById('milestone-filter').value = id;
+          switchView('feedback');
+          renderFeedbackList();
+          renderSidebarMilestones();
+        });
+        card.appendChild(fbBtn);
+      }
       var pctEl = el('div', 'm-pct', pct + '% complete');
       pctEl.style.color = color;
       card.appendChild(pctEl);
@@ -468,12 +506,14 @@
     if ([].slice.call(filterSel.options).some(function (o) { return o.value === curFilter; })) filterSel.value = curFilter;
   }
 
-  function matchesFilters(mid, t) {
+  function matchesFilters(mid, tid, t) {
     if (milestoneFilter !== 'all' && mid !== milestoneFilter) return false;
     if (statusFilter !== 'all' && t.status !== statusFilter) return false;
     if (priorityFilter !== 'all' && (t.priority || 'Medium') !== priorityFilter) return false;
     if (searchText) {
-      var hay = ((t.text || '') + ' ' + (t.clientFeedback || '')).toLowerCase();
+      var hay = ((t.text || '') + ' ' + feedbackFor(tid).map(function (f) {
+        return f.author + ' ' + f.message + ' ' + (f.reply || '');
+      }).join(' ')).toLowerCase();
       if (hay.indexOf(searchText) === -1) return false;
     }
     return true;
@@ -482,7 +522,7 @@
   function renderTaskTable() {
     var tbody = document.getElementById('task-tbody');
     tbody.innerHTML = '';
-    var all = allTasksFlat().filter(function (row) { return matchesFilters(row.mid, row.t); });
+    var all = allTasksFlat().filter(function (row) { return matchesFilters(row.mid, row.tid, row.t); });
     document.getElementById('task-count').textContent = all.length + (all.length === 1 ? ' task' : ' tasks');
     var sno = 0;
     all.forEach(function (row) {
@@ -590,17 +630,18 @@
 
     // client feedback opens a small editor, which keeps the table inside the
     // window instead of scrolling sideways
+    // feedback on this task lives in its own thread, which anyone can add to
     var fbTd = document.createElement('td');
-    if (isAdmin) {
-      var fbBtn = el('button', 'cell-btn' + (t.clientFeedback ? '' : ' empty'), esc(t.clientFeedback || '— add feedback'));
-      fbBtn.title = t.clientFeedback || 'Add client feedback';
-      fbBtn.addEventListener('click', function () { openTaskFeedbackModal(milestoneId, taskDocId); });
-      fbTd.appendChild(fbBtn);
-    } else {
-      var fbText = el('span', 'cell-text' + (t.clientFeedback ? '' : ' empty'), esc(t.clientFeedback || '—'));
-      fbText.title = t.clientFeedback || '';
-      fbTd.appendChild(fbText);
-    }
+    var items = feedbackFor(taskDocId);
+    var openCount = items.filter(function (f) { return f.status !== 'Resolved'; }).length;
+    var fbBtn = el('button', 'bubble-btn' + (items.length ? ' has' : ''), '💬');
+    if (items.length) fbBtn.appendChild(el('span', 'n', String(items.length)));
+    fbBtn.title = items.length
+      ? items.length + ' feedback item' + (items.length === 1 ? '' : 's') + (openCount ? ' · ' + openCount + ' open' : '')
+      : 'Give feedback on this task';
+    fbBtn.setAttribute('aria-label', fbBtn.title);
+    fbBtn.addEventListener('click', function () { openFeedbackModal(milestoneId, taskDocId); });
+    fbTd.appendChild(fbBtn);
     tr.appendChild(fbTd);
 
     var delTd = document.createElement('td'); delTd.className = 'row-del';
@@ -613,27 +654,267 @@
   }
 
   /* ---------------- render: client feedback ---------------- */
+  /* ---------------- render: client feedback ---------------- */
+  var feedbackStatusFilter = 'all';
+
   function renderFeedbackList() {
     var wrap = document.getElementById('feedback-list');
     wrap.innerHTML = '';
-    var ids = Object.keys(feedback).sort(function (a, b) { return (feedback[b].createdAt || 0) - (feedback[a].createdAt || 0); });
-    if (!ids.length) {
+
+    var all = feedbackIds().map(function (id) { return { id: id, f: feedback[id] }; });
+    if (milestoneFilter !== 'all') all = all.filter(function (r) { return r.f.milestoneId === milestoneFilter; });
+    var openCount = all.filter(function (r) { return r.f.status !== 'Resolved'; }).length;
+    var list = feedbackStatusFilter === 'all'
+      ? all
+      : all.filter(function (r) { return (r.f.status || 'Open') === feedbackStatusFilter; });
+
+    document.getElementById('fb-scope').textContent = milestoneFilter === 'all'
+      ? 'all milestones'
+      : (milestones[milestoneFilter] ? milestones[milestoneFilter].name : '');
+    document.getElementById('fb-count').textContent = list.length + ' shown · ' + openCount + ' open';
+
+    if (!list.length) {
       var empty = el('div', 'empty-state');
-      empty.appendChild(el('h3', null, 'No feedback yet'));
-      empty.appendChild(el('p', null, 'Feedback shared by the client or team will appear here.'));
+      empty.appendChild(el('h3', null, 'No feedback here yet'));
+      empty.appendChild(el('p', null, 'Use “+ Give Feedback” to share comments on a milestone or a task.'));
       wrap.appendChild(empty);
       return;
     }
-    ids.forEach(function (id) {
-      var f = feedback[id];
-      var card = el('div', 'feedback-card');
-      card.appendChild(el('div', 'fb-text', esc(f.text)));
-      card.appendChild(el('div', 'fb-meta', (f.author ? esc(f.author) + ' · ' : '') + fmtTime(f.createdAt)));
-      var del = el('button', 'mini-btn row-del', '✕'); del.title = 'Delete';
-      bindConfirm(del, function () { deleteFeedbackDoc(id); });
-      card.appendChild(del);
+
+    list.forEach(function (row) {
+      var f = row.f;
+      var resolved = f.status === 'Resolved';
+      var color = milestoneColor(f.milestoneId);
+      var card = el('div', 'fb-card' + (resolved ? ' resolved' : ''));
+
+      var top = el('div', 'fb-top');
+      var code = el('span', 'fb-code', esc(milestoneCode(f.milestoneId) || 'M'));
+      code.style.color = color;
+      code.style.borderColor = color;
+      top.appendChild(code);
+
+      var where = el('div', 'fb-where');
+      where.appendChild(el('div', 'fb-ms', esc(milestones[f.milestoneId] ? milestones[f.milestoneId].name : 'Deleted milestone')));
+      var task = f.taskId && tasksFor(f.milestoneId)[f.taskId];
+      if (task) {
+        var link = el('button', 'fb-task', 'Task #' + (task.taskId || '') + ' · ' + esc(task.text || ''));
+        link.title = 'Show this task';
+        link.addEventListener('click', function () {
+          milestoneFilter = f.milestoneId;
+          document.getElementById('milestone-filter').value = f.milestoneId;
+          searchText = (task.text || '').slice(0, 40).toLowerCase();
+          document.getElementById('search-input').value = (task.text || '').slice(0, 40);
+          switchView('tasks');
+          renderTaskTable();
+          renderSidebarMilestones();
+        });
+        where.appendChild(link);
+      } else {
+        where.appendChild(el('div', 'fb-general', 'General milestone feedback'));
+      }
+      top.appendChild(where);
+      top.appendChild(el('span', 'fb-status ' + (resolved ? 'resolved' : 'open'), resolved ? '✓ Resolved' : '● Open'));
+      card.appendChild(top);
+
+      card.appendChild(el('div', 'fb-msg', esc(f.message || '')));
+      card.appendChild(el('div', 'fb-meta', '— ' + esc(f.author || 'Anonymous') + ' · ' + timeAgo(f.createdAt)));
+
+      if (f.reply) {
+        var reply = el('div', 'fb-reply');
+        reply.appendChild(el('div', 'fb-reply-label', 'Team reply' + (f.repliedAt ? ' · ' + timeAgo(f.repliedAt) : '')));
+        reply.appendChild(el('div', 'fb-reply-text', esc(f.reply)));
+        card.appendChild(reply);
+      }
+
+      if (isAdmin) {
+        var admin = el('div', 'fb-admin');
+        var replyInput = document.createElement('textarea');
+        replyInput.className = 'fb-reply-input';
+        replyInput.placeholder = 'Write a reply the client will see…';
+        replyInput.maxLength = 2000;
+        replyInput.value = f.reply || '';
+        admin.appendChild(replyInput);
+
+        var btns = el('div', 'fb-admin-btns');
+        var save = el('button', 'btn small primary', 'Save reply');
+        save.addEventListener('click', function () {
+          var value = replyInput.value.trim();
+          writeFeedbackUpdate(row.id, { reply: value }, value ? 'Reply saved' : 'Reply removed');
+        });
+        var toggle = el('button', 'btn small', resolved ? 'Reopen' : '✓ Mark resolved');
+        toggle.addEventListener('click', function () {
+          writeFeedbackUpdate(row.id, { status: resolved ? 'Open' : 'Resolved' }, resolved ? 'Reopened' : 'Marked resolved');
+        });
+        var del = el('button', 'btn small danger', 'Delete');
+        del.style.marginLeft = 'auto';
+        bindConfirm(del, function () { deleteFeedbackDoc(row.id); });
+        btns.appendChild(save); btns.appendChild(toggle); btns.appendChild(del);
+        admin.appendChild(btns);
+        card.appendChild(admin);
+      }
+
       wrap.appendChild(card);
     });
+  }
+
+  /* ---------------- render: task table ---------------- */
+  function populateMilestoneSelects() {
+    var filterSel = document.getElementById('milestone-filter');
+    var curFilter = filterSel.value || 'all';
+    filterSel.innerHTML = '<option value="all">All milestones</option>';
+    orderedMilestoneIds().forEach(function (id) {
+      var m = milestones[id];
+      var o1 = document.createElement('option'); o1.value = id; o1.textContent = m.name;
+      filterSel.appendChild(o1);
+    });
+    if ([].slice.call(filterSel.options).some(function (o) { return o.value === curFilter; })) filterSel.value = curFilter;
+  }
+
+  function matchesFilters(mid, tid, t) {
+    if (milestoneFilter !== 'all' && mid !== milestoneFilter) return false;
+    if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+    if (priorityFilter !== 'all' && (t.priority || 'Medium') !== priorityFilter) return false;
+    if (searchText) {
+      var hay = ((t.text || '') + ' ' + feedbackFor(tid).map(function (f) {
+        return f.author + ' ' + f.message + ' ' + (f.reply || '');
+      }).join(' ')).toLowerCase();
+      if (hay.indexOf(searchText) === -1) return false;
+    }
+    return true;
+  }
+
+  function renderTaskTable() {
+    var tbody = document.getElementById('task-tbody');
+    tbody.innerHTML = '';
+    var all = allTasksFlat().filter(function (row) { return matchesFilters(row.mid, row.tid, row.t); });
+    document.getElementById('task-count').textContent = all.length + (all.length === 1 ? ' task' : ' tasks');
+    var sno = 0;
+    all.forEach(function (row) {
+      sno++;
+      tbody.appendChild(buildTaskRow(sno, row.mid, row.tid, row.t));
+    });
+    // size every editor to its full content now that the rows are in the DOM
+    sizeTaskEditors();
+    applyAccess();
+    if (!all.length) {
+      var tr = document.createElement('tr');
+      var td = document.createElement('td'); td.colSpan = 8;
+      td.innerHTML = '<span style="display:block;padding:18px 10px;color:var(--ink-faint);font-size:14.5px;">No tasks match the current filters.</span>';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    }
+  }
+
+  function buildTaskRow(sno, milestoneId, taskDocId, t) {
+    var tr = document.createElement('tr');
+
+    var snoTd = document.createElement('td'); snoTd.className = 'task-sno mono'; snoTd.textContent = sno;
+    tr.appendChild(snoTd);
+
+    var mTd = document.createElement('td');
+    var mCell = el('div', 'm-cell');
+    var mName = (milestones[milestoneId] && milestones[milestoneId].name) || '';
+    var mLabel = el('div', 'm-cell-label');
+    mLabel.setAttribute('aria-hidden', 'true');
+    var code = milestoneCode(milestoneId);
+    if (code) {
+      var mCode = el('span', 'm-code', esc(code));
+      mCode.style.color = milestoneColor(milestoneId);
+      mLabel.appendChild(mCode);
+    }
+    mLabel.appendChild(document.createTextNode(milestoneLabel(milestoneId)));
+    var mSel = document.createElement('select');
+    mSel.className = 'm-select overlay';
+    mSel.setAttribute('aria-label', 'Milestone');
+    orderedMilestoneIds().forEach(function (mid) {
+      var o = document.createElement('option'); o.value = mid; o.textContent = milestones[mid].name;
+      if (mid === milestoneId) o.selected = true;
+      mSel.appendChild(o);
+    });
+    mSel.title = mName;
+    mSel.addEventListener('change', function () { moveTaskToMilestone(milestoneId, taskDocId, mSel.value); });
+    mCell.appendChild(mLabel);
+    mCell.appendChild(mSel);
+    mTd.appendChild(mCell);
+    tr.appendChild(mTd);
+
+    var textTd = document.createElement('td');
+    var textInput = document.createElement('textarea');
+    textInput.className = 'task-text-input'; textInput.value = t.text || ''; textInput.rows = 1;
+    textInput.addEventListener('input', function () { autoGrow(textInput); });
+    textInput.addEventListener('blur', function () {
+      var v = textInput.value.trim();
+      if (v && v !== t.text) writeTaskUpdate(milestoneId, taskDocId, { text: v });
+    });
+    textTd.appendChild(textInput);
+    tr.appendChild(textTd);
+
+    var statusTd = document.createElement('td');
+    var sel = document.createElement('select');
+    sel.className = 'status-select ' + (STATUS_CLASS[t.status] || 'st-todo');
+    STATUS_OPTS.forEach(function (opt) {
+      var o = document.createElement('option'); o.value = opt; o.textContent = opt;
+      if (t.status === opt) o.selected = true;
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', function () {
+      sel.className = 'status-select ' + (STATUS_CLASS[sel.value] || 'st-todo');
+      writeTaskUpdate(milestoneId, taskDocId, { status: sel.value });
+    });
+    statusTd.appendChild(sel);
+    tr.appendChild(statusTd);
+
+    var prioTd = document.createElement('td');
+    var prioSel = document.createElement('select');
+    var curPrio = t.priority || 'Medium';
+    prioSel.className = 'prio-select ' + (PRIORITY_CLASS[curPrio] || 'pr-medium');
+    PRIORITY_OPTS.forEach(function (opt) {
+      var o = document.createElement('option'); o.value = opt; o.textContent = opt;
+      if (curPrio === opt) o.selected = true;
+      prioSel.appendChild(o);
+    });
+    prioSel.addEventListener('change', function () {
+      prioSel.className = 'prio-select ' + (PRIORITY_CLASS[prioSel.value] || 'pr-medium');
+      writeTaskUpdate(milestoneId, taskDocId, { priority: prioSel.value });
+    });
+    prioTd.appendChild(prioSel);
+    tr.appendChild(prioTd);
+
+    var startTd = document.createElement('td');
+    if (isAdmin) {
+      var startInput = document.createElement('input');
+      startInput.type = 'date'; startInput.className = 'date-input'; startInput.value = t.startDate || '';
+      startInput.addEventListener('change', function () { writeTaskUpdate(milestoneId, taskDocId, { startDate: startInput.value }); });
+      startTd.appendChild(startInput);
+    } else {
+      // the client link reads as plain text rather than an empty date field
+      startTd.appendChild(el('span', 'cell-text', fmtDate(t.startDate)));
+    }
+    tr.appendChild(startTd);
+
+    // client feedback opens a small editor, which keeps the table inside the
+    // window instead of scrolling sideways
+    // feedback on this task lives in its own thread, which anyone can add to
+    var fbTd = document.createElement('td');
+    var items = feedbackFor(taskDocId);
+    var openCount = items.filter(function (f) { return f.status !== 'Resolved'; }).length;
+    var fbBtn = el('button', 'bubble-btn' + (items.length ? ' has' : ''), '💬');
+    if (items.length) fbBtn.appendChild(el('span', 'n', String(items.length)));
+    fbBtn.title = items.length
+      ? items.length + ' feedback item' + (items.length === 1 ? '' : 's') + (openCount ? ' · ' + openCount + ' open' : '')
+      : 'Give feedback on this task';
+    fbBtn.setAttribute('aria-label', fbBtn.title);
+    fbBtn.addEventListener('click', function () { openFeedbackModal(milestoneId, taskDocId); });
+    fbTd.appendChild(fbBtn);
+    tr.appendChild(fbTd);
+
+    var delTd = document.createElement('td'); delTd.className = 'row-del';
+    var del = el('button', 'mini-btn', TRASH_SVG); del.title = 'Delete task';
+    bindConfirm(del, function () { deleteTaskDoc(milestoneId, taskDocId); });
+    delTd.appendChild(del);
+    tr.appendChild(delTd);
+
+    return tr;
   }
 
   /* ---------------- modals ---------------- */
@@ -765,52 +1046,68 @@
     setTimeout(function () { textInput.focus(); }, 10);
   }
 
-  function openTaskFeedbackModal(milestoneId, taskDocId) {
-    var t = tasksFor(milestoneId)[taskDocId];
-    if (!t) return;
+  var NAME_STORAGE = 'efficioHubTracker.name';
+
+  function openFeedbackModal(presetMilestone, presetTask) {
+    var ids = orderedMilestoneIds();
+    if (!ids.length) { showToast('There are no milestones to comment on yet', true); return; }
+
     var box = el('div');
-    box.appendChild(el('h3', null, 'Client feedback'));
-    box.appendChild(el('p', 'modal-sub', esc(t.text || '')));
+    box.appendChild(el('h3', null, '💬 Give Feedback'));
+    box.appendChild(el('p', 'modal-sub', 'Share comments or change requests on a milestone, or on a specific task inside it.'));
 
-    var fbField = el('div', 'field');
-    fbField.appendChild(el('label', null, 'Feedback on this task'));
-    var fbInput = document.createElement('textarea');
-    fbInput.value = t.clientFeedback || '';
-    fbInput.placeholder = 'What the client said about this task…';
-    fbField.appendChild(fbInput);
-    box.appendChild(fbField);
-
-    var actionsRow = el('div', 'modal-actions');
-    actionsRow.appendChild(el('span'));
-    var right = el('div', 'right');
-    var cancel = el('button', 'btn ghost', 'Cancel');
-    cancel.addEventListener('click', closeModal);
-    var save = el('button', 'btn primary', 'Save');
-    save.addEventListener('click', function () {
-      var value = fbInput.value.trim();
-      if (value !== (t.clientFeedback || '')) writeTaskUpdate(milestoneId, taskDocId, { clientFeedback: value });
-      closeModal();
+    var msField = el('div', 'field');
+    msField.appendChild(el('label', null, 'Milestone'));
+    var msSelect = document.createElement('select');
+    ids.forEach(function (id) {
+      var o = document.createElement('option');
+      o.value = id; o.textContent = milestones[id].name;
+      msSelect.appendChild(o);
     });
-    right.appendChild(cancel); right.appendChild(save);
-    actionsRow.appendChild(right);
-    box.appendChild(actionsRow);
-    openModal(box);
-    setTimeout(function () { fbInput.focus(); }, 10);
-  }
+    msSelect.value = presetMilestone || (milestoneFilter !== 'all' ? milestoneFilter : ids[0]);
+    msField.appendChild(msSelect);
+    box.appendChild(msField);
 
-  function openFeedbackModal() {
-    var box = el('div');
-    box.appendChild(el('h3', null, 'Give feedback'));
+    var taskField = el('div', 'field');
+    taskField.appendChild(el('label', null, 'Task (optional)'));
+    var taskSelect = document.createElement('select');
+    function fillTasks(selected) {
+      taskSelect.innerHTML = '';
+      var general = document.createElement('option');
+      general.value = ''; general.textContent = 'Whole milestone (general feedback)';
+      taskSelect.appendChild(general);
+      var mid = msSelect.value;
+      taskIdsFor(mid)
+        .map(function (tid) { return { tid: tid, t: tasksFor(mid)[tid] }; })
+        .sort(function (a, b) { return (a.t.taskId || 0) - (b.t.taskId || 0); })
+        .forEach(function (row) {
+          var o = document.createElement('option');
+          o.value = row.tid;
+          var text = row.t.text || '';
+          o.textContent = '#' + (row.t.taskId || '') + ' ' + (text.length > 70 ? text.slice(0, 70) + '…' : text);
+          taskSelect.appendChild(o);
+        });
+      taskSelect.value = selected || '';
+    }
+    fillTasks(presetTask);
+    msSelect.addEventListener('change', function () { fillTasks(''); });
+    taskField.appendChild(taskSelect);
+    box.appendChild(taskField);
+
     var nameField = el('div', 'field');
-    nameField.appendChild(el('label', null, 'Your name (optional)'));
+    nameField.appendChild(el('label', null, 'Your name'));
     var nameInput = document.createElement('input');
-    nameInput.type = 'text'; nameInput.placeholder = 'e.g. Client stakeholder';
+    nameInput.type = 'text';
+    nameInput.placeholder = 'e.g. Priya — Efficio Hub';
+    nameInput.value = storageGet(NAME_STORAGE);
     nameField.appendChild(nameInput);
     box.appendChild(nameField);
+
     var msgField = el('div', 'field');
-    msgField.appendChild(el('label', null, 'Message'));
+    msgField.appendChild(el('label', null, 'Feedback'));
     var msgInput = document.createElement('textarea');
-    msgInput.placeholder = 'Share a comment, question or observation…';
+    msgInput.placeholder = 'What would you like us to change or know?';
+    msgInput.maxLength = 2000;
     msgField.appendChild(msgInput);
     box.appendChild(msgField);
 
@@ -821,9 +1118,12 @@
     cancel.addEventListener('click', closeModal);
     var send = el('button', 'btn primary', 'Send Feedback');
     send.addEventListener('click', function () {
-      var text = msgInput.value.trim();
-      if (!text) { msgInput.focus(); return; }
-      createFeedbackDoc(text, nameInput.value.trim());
+      var author = nameInput.value.trim();
+      var message = msgInput.value.trim();
+      if (!author) { showToast('Please enter your name', true); nameInput.focus(); return; }
+      if (!message) { showToast('Please write your feedback', true); msgInput.focus(); return; }
+      storageSet(NAME_STORAGE, author);
+      createFeedbackDoc({ milestoneId: msSelect.value, taskId: taskSelect.value || null, author: author, message: message });
       closeModal();
       switchView('feedback');
     });
@@ -831,14 +1131,17 @@
     actionsRow.appendChild(right);
     box.appendChild(actionsRow);
     openModal(box);
-    setTimeout(function () { msgInput.focus(); }, 10);
+    setTimeout(function () { (nameInput.value ? msgInput : nameInput).focus(); }, 10);
   }
 
   /* ---------------- CSV export ---------------- */
   function exportCsv() {
     var rows = [['S.No', 'Milestone', 'Task', 'Status', 'Priority', 'Start', 'Client Feedback']];
     allTasksFlat().forEach(function (row, i) {
-      rows.push([i + 1, milestones[row.mid] ? milestones[row.mid].name : '', row.t.text || '', row.t.status || '', row.t.priority || '', row.t.startDate || '', row.t.clientFeedback || '']);
+      var notes = feedbackFor(row.tid).map(function (f) {
+        return f.author + ': ' + f.message + (f.reply ? ' | Reply: ' + f.reply : '');
+      }).join(' — ');
+      rows.push([i + 1, milestones[row.mid] ? milestones[row.mid].name : '', row.t.text || '', row.t.status || '', row.t.priority || '', row.t.startDate || '', notes]);
     });
     var csv = rows.map(function (r) {
       return r.map(function (cell) {
@@ -892,7 +1195,7 @@
     });
     var tid = uid('t');
     tasksByMilestone[milestoneId][tid] = {
-      taskId: maxId + 1, text: text, status: 'Pending', priority: 'Medium', owner: '', startDate: '', dueDate: '', clientFeedback: '', createdAt: Date.now()
+      taskId: maxId + 1, text: text, status: 'Pending', priority: 'Medium', owner: '', startDate: '', dueDate: '', createdAt: Date.now()
     };
     renderAll();
     push(api('/tasks', { method: 'POST', body: JSON.stringify({ id: tid, milestoneId: milestoneId, text: text }) }), 'Task');
@@ -922,30 +1225,40 @@
     renderAll();
     push(api('/tasks/' + encodeURIComponent(taskDocId), { method: 'PATCH', body: JSON.stringify({ milestoneId: toMid }) }), 'Task');
   }
-  function createFeedbackDoc(text, author) {
+  function createFeedbackDoc(item) {
     var id = uid('f');
-    feedback[id] = { text: text, author: author || '', createdAt: Date.now() };
-    renderNavCounts();
-    renderStats();
-    renderFeedbackList();
-    api('/feedback', { method: 'POST', body: JSON.stringify({ text: text, author: author || '' }) })
+    feedback[id] = {
+      milestoneId: item.milestoneId, taskId: item.taskId || null, author: item.author,
+      message: item.message, status: 'Open', reply: '', repliedAt: null, createdAt: Date.now()
+    };
+    lastWriteAt = Date.now();
+    renderAll();
+    api('/feedback', { method: 'POST', body: JSON.stringify(item) })
       .then(function (saved) {
-        // keep the server's id so a later delete hits the right document
+        // keep the server's id so a later reply or delete hits the right document
         delete feedback[id];
-        feedback[saved._id] = { text: saved.text, author: saved.author, createdAt: saved.createdAt };
-        renderFeedbackList();
+        feedback[saved._id] = saved;
+        renderAll();
+        showToast('Thank you — your feedback was sent');
       })
       .catch(function (err) {
         delete feedback[id];
-        renderNavCounts(); renderStats(); renderFeedbackList();
-        showToast('Feedback not saved: ' + err.message, true);
+        renderAll();
+        showToast('Could not send feedback: ' + err.message, true);
       });
+  }
+
+  function writeFeedbackUpdate(id, data, okMsg) {
+    if (!feedback[id]) return;
+    feedback[id] = Object.assign({}, feedback[id], data);
+    if (data.reply !== undefined) feedback[id].repliedAt = data.reply ? Date.now() : null;
+    renderAll();
+    push(api('/feedback/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify(data) })
+      .then(function () { if (okMsg) showToast(okMsg); }), 'Feedback');
   }
   function deleteFeedbackDoc(id) {
     delete feedback[id];
-    renderNavCounts();
-    renderStats();
-    renderFeedbackList();
+    renderAll();
     push(api('/feedback/' + encodeURIComponent(id), { method: 'DELETE' }), 'Feedback');
   }
 
@@ -965,8 +1278,8 @@
   function boot() {
     document.getElementById('settings-btn').addEventListener('click', openSettingsModal);
     document.getElementById('add-milestone-btn').addEventListener('click', function () { openMilestoneModal(null); });
-    document.getElementById('feedback-btn').addEventListener('click', openFeedbackModal);
-    document.getElementById('add-feedback-btn').addEventListener('click', openFeedbackModal);
+    document.getElementById('feedback-btn').addEventListener('click', function () { openFeedbackModal(); });
+    document.getElementById('add-feedback-btn').addEventListener('click', function () { openFeedbackModal(); });
     document.getElementById('export-btn').addEventListener('click', exportCsv);
 
     document.getElementById('search-input').addEventListener('input', function (e) {
@@ -996,6 +1309,10 @@
       renderSidebarMilestones();
     });
     document.getElementById('add-task-btn').addEventListener('click', openAddTaskModal);
+    document.getElementById('fb-status-filter').addEventListener('change', function (e) {
+      feedbackStatusFilter = e.target.value;
+      renderFeedbackList();
+    });
 
     // theme: follow the system unless the user picks one here
     var themeBtn = document.getElementById('theme-btn');

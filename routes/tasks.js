@@ -2,9 +2,10 @@ const express = require('express');
 const router  = express.Router();
 const Task    = require('../models/Task');
 const Milestone = require('../models/Milestone');
+const Feedback = require('../models/Feedback');
 const { requireAdmin } = require('../middleware/auth');
 
-const EDITABLE = ['text', 'status', 'priority', 'owner', 'startDate', 'dueDate', 'clientFeedback', 'milestoneId'];
+const EDITABLE = ['text', 'status', 'priority', 'owner', 'startDate', 'dueDate', 'milestoneId'];
 
 function newId(prefix) {
   return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -54,7 +55,8 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const task = await Task.findByIdAndDelete(req.params.id).lean();
     if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
-    res.json({ success: true, data: task });
+    const fb = await Feedback.deleteMany({ taskId: req.params.id });
+    res.json({ success: true, data: { task, feedbackDeleted: fb.deletedCount } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

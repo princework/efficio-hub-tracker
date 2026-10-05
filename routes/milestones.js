@@ -2,6 +2,7 @@ const express   = require('express');
 const router    = express.Router();
 const Milestone = require('../models/Milestone');
 const Task      = require('../models/Task');
+const Feedback  = require('../models/Feedback');
 const { requireAdmin } = require('../middleware/auth');
 const { newId }        = require('./tasks');
 
@@ -44,7 +45,8 @@ router.delete('/:id', requireAdmin, async (req, res) => {
     const milestone = await Milestone.findByIdAndDelete(req.params.id).lean();
     if (!milestone) return res.status(404).json({ success: false, message: 'Milestone not found' });
     const tasks = await Task.deleteMany({ milestoneId: req.params.id });
-    res.json({ success: true, data: { milestone, tasksDeleted: tasks.deletedCount } });
+    const fb = await Feedback.deleteMany({ milestoneId: req.params.id });
+    res.json({ success: true, data: { milestone, tasksDeleted: tasks.deletedCount, feedbackDeleted: fb.deletedCount } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

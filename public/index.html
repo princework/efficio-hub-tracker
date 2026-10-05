@@ -105,8 +105,14 @@
 
   <!-- CLIENT FEEDBACK -->
   <section class="view" id="view-feedback">
+    <h2 class="section-title">Client Feedback <span class="section-hint">— <span id="fb-scope">all milestones</span></span></h2>
     <div class="toolbar">
-      <span class="toolbar-note">Messages and comments shared with the project team.</span>
+      <span class="result-count" id="fb-count">0 shown · 0 open</span>
+      <select class="select-filter" id="fb-status-filter" aria-label="Filter feedback by status">
+        <option value="all">All feedback</option>
+        <option value="Open">Open</option>
+        <option value="Resolved">Resolved</option>
+      </select>
       <button class="btn primary" id="add-feedback-btn" style="margin-left:auto;">+ Give Feedback</button>
     </div>
     <div class="feedback-list" id="feedback-list"></div>

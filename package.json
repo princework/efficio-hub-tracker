@@ -10,7 +10,8 @@
     "check": "node scripts/check.js",
     "reseed": "node scripts/reseed.js",
     "migrate": "node scripts/migrate-shortnames.js",
-    "migrate-status": "node scripts/migrate-status.js"
+    "migrate-status": "node scripts/migrate-status.js",
+    "migrate-feedback": "node scripts/migrate-feedback.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
