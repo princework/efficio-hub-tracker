@@ -14,14 +14,14 @@ const Feedback = require('../models/Feedback');
     await Feedback.create({
       _id: 'f_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
       milestoneId: t.milestoneId, taskId: t._id,
-      author: 'Client', message: t.clientFeedback, createdAt: Date.now(),
+      message: t.clientFeedback, createdAt: Date.now(),
     });
     console.log(`moved feedback from ${t._id}`);
   }
   const res = await tasks.updateMany({ clientFeedback: { $exists: true } }, { $unset: { clientFeedback: '' } });
   console.log(`carried over ${withText.length} note(s); cleared the field on ${res.modifiedCount} tasks`);
 
-  // older feedback documents had only text/author
+  // older feedback documents had only a text field
   const fb = mongoose.connection.db.collection('feedback');
   const legacy = await fb.countDocuments({ message: { $exists: false } });
   console.log(`legacy feedback documents without a message: ${legacy}`);

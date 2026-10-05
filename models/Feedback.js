@@ -5,7 +5,6 @@ const feedbackSchema = new mongoose.Schema({
   _id:         { type: String },
   milestoneId: { type: String, required: true, ref: 'Milestone' },
   taskId:      { type: String, default: null, ref: 'Task' },
-  author:      { type: String, required: true, trim: true, maxlength: 80 },
   message:     { type: String, required: true, trim: true, maxlength: 2000 },
   status:      { type: String, enum: ['Open', 'Resolved'], default: 'Open' },
   createdAt:   { type: Number, default: () => Date.now() },

@@ -11,9 +11,7 @@ router.post('/', async (req, res) => {
   try {
     const milestoneId = String(req.body.milestoneId || '');
     const message = String(req.body.message || '').trim();
-    const author = String(req.body.author || '').trim();
     if (!message) return res.status(400).json({ success: false, message: 'Message is required' });
-    if (!author)  return res.status(400).json({ success: false, message: 'Your name is required' });
 
     const milestone = await Milestone.findById(milestoneId).lean();
     if (!milestone) return res.status(400).json({ success: false, message: 'Unknown milestone' });
@@ -26,7 +24,7 @@ router.post('/', async (req, res) => {
     }
 
     const item = await Feedback.create({
-      _id: newId('f'), milestoneId, taskId, author, message, createdAt: Date.now(),
+      _id: newId('f'), milestoneId, taskId, message, createdAt: Date.now(),
     });
     res.status(201).json({ success: true, data: item });
   } catch (err) {

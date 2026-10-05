@@ -9,7 +9,7 @@
   var project = { name: 'Efficio Hub', description: '' };
   var milestones = {};            // id -> {name, order, objective, allocatedDays, createdAt}
   var tasksByMilestone = {};      // milestoneId -> { taskDocId -> task }
-  var feedback = {};              // id -> {text, author, createdAt}
+  var feedback = {};              // id -> {message, createdAt}
 
   var activeView = 'dashboard';
   var statusFilter = 'all';
@@ -544,7 +544,7 @@
     if (priorityFilter !== 'all' && (t.priority || 'Medium') !== priorityFilter) return false;
     if (searchText) {
       var hay = ((t.text || '') + ' ' + feedbackFor(tid).map(function (f) {
-        return f.author + ' ' + f.message;
+        return f.message;
       }).join(' ')).toLowerCase();
       if (hay.indexOf(searchText) === -1) return false;
     }
@@ -634,7 +634,6 @@
       card.appendChild(top);
 
       card.appendChild(el('div', 'fb-msg', esc(f.message || '')));
-      card.appendChild(el('div', 'fb-meta', '— ' + esc(f.author || 'Anonymous')));
 
       if (isAdmin) {
         var btns = el('div', 'fb-admin-btns');
@@ -672,7 +671,7 @@
     if (priorityFilter !== 'all' && (t.priority || 'Medium') !== priorityFilter) return false;
     if (searchText) {
       var hay = ((t.text || '') + ' ' + feedbackFor(tid).map(function (f) {
-        return f.author + ' ' + f.message;
+        return f.message;
       }).join(' ')).toLowerCase();
       if (hay.indexOf(searchText) === -1) return false;
     }
@@ -831,11 +830,11 @@
     if (items.length) {
       var latest = items[0];
       var note = el('div', 'fb-cell-text', esc(latest.message));
-      note.title = items.map(function (f) { return f.author + ': ' + f.message; }).join('\n\n');
+      note.title = items.map(function (f) { return f.message; }).join('\n\n');
       fbCell.appendChild(note);
-      var meta = el('div', 'fb-cell-meta', esc(latest.author || '') +
-        (items.length > 1 ? ' · +' + (items.length - 1) + ' more' : ''));
-      fbCell.appendChild(meta);
+      if (items.length > 1) {
+        fbCell.appendChild(el('div', 'fb-cell-meta', '+' + (items.length - 1) + ' more'));
+      }
     }
     var fbBtn = el('button', 'bubble-btn' + (items.length ? ' has' : ''), '💬');
     if (items.length) fbBtn.appendChild(el('span', 'n', String(items.length)));
@@ -984,8 +983,6 @@
     setTimeout(function () { textInput.focus(); }, 10);
   }
 
-  var NAME_STORAGE = 'efficioHubTracker.name';
-
   function openFeedbackModal(presetMilestone, presetTask) {
     var ids = orderedMilestoneIds();
     if (!ids.length) { showToast('There are no milestones to comment on yet', true); return; }
@@ -1032,15 +1029,6 @@
     taskField.appendChild(taskSelect);
     box.appendChild(taskField);
 
-    var nameField = el('div', 'field');
-    nameField.appendChild(el('label', null, 'Your name'));
-    var nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.placeholder = 'e.g. Priya — Efficio Hub';
-    nameInput.value = storageGet(NAME_STORAGE);
-    nameField.appendChild(nameInput);
-    box.appendChild(nameField);
-
     var msgField = el('div', 'field');
     msgField.appendChild(el('label', null, 'Feedback'));
     var msgInput = document.createElement('textarea');
@@ -1056,12 +1044,9 @@
     cancel.addEventListener('click', closeModal);
     var send = el('button', 'btn primary', 'Send Feedback');
     send.addEventListener('click', function () {
-      var author = nameInput.value.trim();
       var message = msgInput.value.trim();
-      if (!author) { showToast('Please enter your name', true); nameInput.focus(); return; }
       if (!message) { showToast('Please write your feedback', true); msgInput.focus(); return; }
-      storageSet(NAME_STORAGE, author);
-      createFeedbackDoc({ milestoneId: msSelect.value, taskId: taskSelect.value || null, author: author, message: message });
+      createFeedbackDoc({ milestoneId: msSelect.value, taskId: taskSelect.value || null, message: message });
       closeModal();
       switchView('feedback');
     });
@@ -1069,7 +1054,7 @@
     actionsRow.appendChild(right);
     box.appendChild(actionsRow);
     openModal(box);
-    setTimeout(function () { (nameInput.value ? msgInput : nameInput).focus(); }, 10);
+    setTimeout(function () { msgInput.focus(); }, 10);
   }
 
   /* ---------------- CSV export ---------------- */
@@ -1077,7 +1062,7 @@
     var rows = [['S.No', 'Milestone', 'Task', 'Status', 'Priority', 'Start', 'Client Feedback']];
     allTasksFlat().forEach(function (row, i) {
       var notes = feedbackFor(row.tid).map(function (f) {
-        return f.author + ': ' + f.message;
+        return f.message;
       }).join(' — ');
       rows.push([i + 1, milestones[row.mid] ? milestones[row.mid].name : '', row.t.text || '', row.t.status || '', row.t.priority || '', row.t.startDate || '', notes]);
     });
@@ -1175,7 +1160,7 @@
   function createFeedbackDoc(item) {
     var id = uid('f');
     feedback[id] = {
-      milestoneId: item.milestoneId, taskId: item.taskId || null, author: item.author,
+      milestoneId: item.milestoneId, taskId: item.taskId || null,
       message: item.message, status: 'Open', createdAt: Date.now()
     };
     lastWriteAt = Date.now();
