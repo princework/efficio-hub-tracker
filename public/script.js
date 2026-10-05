@@ -16,8 +16,8 @@
   var priorityFilter = 'all';
   var milestoneFilter = 'all';
   var searchText = '';
-  var STATUS_OPTS = ['Not Started', 'In Progress', 'Done'];
-  var STATUS_CLASS = { 'Not Started': 'st-todo', 'In Progress': 'st-active', 'Done': 'st-done' };
+  var STATUS_OPTS = ['Pending', 'In Progress', 'Done'];
+  var STATUS_CLASS = { 'Pending': 'st-todo', 'In Progress': 'st-active', 'Done': 'st-done' };
   var PRIORITY_OPTS = ['Low', 'Medium', 'High'];
   var PRIORITY_CLASS = { 'Low': 'pr-low', 'Medium': 'pr-medium', 'High': 'pr-high' };
   // one colour per milestone, reused across the sidebar, the table and the charts
@@ -298,8 +298,11 @@
 
   /* ---------------- render: header + stats ---------------- */
   function renderHeader() {
-    document.getElementById('proj-title').textContent = project.name || 'Untitled tracker';
-    document.title = project.name || 'Tracker';
+    var name = project.name || 'Untitled tracker';
+    var brand = document.getElementById('proj-title');   // the logo stands in for the name
+    brand.alt = name;
+    brand.title = name;
+    document.title = name;
   }
 
   function renderNavCounts() {
@@ -360,7 +363,7 @@
     tile('', 'Total Tasks', totals.total, null, mCount + (mCount === 1 ? ' milestone' : ' milestones'));
     tile('done-n', 'Completed', totals.done, share(totals.done));
     tile('active-n', 'In Progress', totals.active, share(totals.active));
-    tile('todo-n', 'Not Started', totals.todo, share(totals.todo));
+    tile('todo-n', 'Pending', totals.todo, share(totals.todo));
     tile('accent-n', 'Overall %', pct + '%', pct);
     var fbCount = Object.keys(feedback).length;
     tile('', 'Client Feedback', fbCount, null, fbCount + (fbCount === 1 ? ' message' : ' messages') + ' total');
@@ -889,7 +892,7 @@
     });
     var tid = uid('t');
     tasksByMilestone[milestoneId][tid] = {
-      taskId: maxId + 1, text: text, status: 'Not Started', priority: 'Medium', owner: '', startDate: '', dueDate: '', clientFeedback: '', createdAt: Date.now()
+      taskId: maxId + 1, text: text, status: 'Pending', priority: 'Medium', owner: '', startDate: '', dueDate: '', clientFeedback: '', createdAt: Date.now()
     };
     renderAll();
     push(api('/tasks', { method: 'POST', body: JSON.stringify({ id: tid, milestoneId: milestoneId, text: text }) }), 'Task');

@@ -72,7 +72,7 @@ button { font-family: inherit; }
   padding: 0 24px; height: 62px; position: sticky; top: 0; z-index: 40;
 }
 .topbar-brand { display: flex; align-items: center; min-width: 0; flex: 0 1 auto; overflow: hidden; }
-.brand-name { font-size: 23px; font-weight: 800; letter-spacing: -0.02em; color: var(--gold); white-space: nowrap; }
+.brand-logo { height: 42px; width: auto; display: block; }
 .topbar-actions { display: flex; align-items: center; gap: 9px; flex: 0 1 auto; min-width: 0; }
 .live { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--topbar-soft); margin-right: 2px; }
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #6b7280; display: inline-block; flex: 0 0 auto; }
