@@ -353,3 +353,12 @@ body.readonly .status-select, body.readonly .prio-select { padding-right: 11px; 
 }
 .toast[hidden] { display: none; }
 .toast.err { background: var(--risk); color: #fff; }
+
+/* ---------------- database unreachable ---------------- */
+.load-error {
+  background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--risk);
+  border-radius: var(--radius); padding: 26px 28px; box-shadow: var(--shadow); max-width: 620px;
+}
+.load-error[hidden] { display: none; }
+.load-error h3 { font-size: 19px; font-weight: 700; margin-bottom: 8px; }
+.load-error p { font-size: 14.5px; line-height: 1.6; color: var(--ink-soft); margin: 0 0 18px; }

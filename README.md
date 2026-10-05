@@ -65,14 +65,15 @@ lib/seedData.js   turns public/seed-data.js into documents
 models/           Project, Milestone, Task, Feedback
 routes/           state, tasks, milestones, feedback, project
 middleware/auth.js  developer-key check
-public/           the tracker page (index.html, style.css, script.js, seed-data.js)
+public/           the tracker page (index.html, style.css, script.js)
+data/seed-data.js the 9 milestones / 172 tasks loaded by npm run seed
 scripts/seed.js   npm run seed
 scripts/check.js  npm run check
 scripts/reseed.js npm run reseed
 ```
 
-### Offline use
+### No offline copy
 
-Opening `public/index.html` directly still works: the page detects that `/api` is not
-reachable, seeds itself from `seed-data.js` and saves to localStorage. Nothing in that
-mode reaches MongoDB.
+The page reads and writes MongoDB only. If the database cannot be reached it says so
+and loads nothing, rather than showing stale or seeded data. `data/seed-data.js` is
+server-side: it exists to load the database once, through `npm run seed`.

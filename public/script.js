@@ -1,10 +1,8 @@
 (function () {
   'use strict';
 
-  var STORAGE_KEY = 'efficioHubTracker.v1';
   var KEY_STORAGE = 'efficioHubTracker.key';
 
-  var backend  = false;   // true once the API answers; false = standalone/offline page
   var adminKey = '';
   var isAdmin  = false;   // the client link is view + feedback only
 
@@ -71,6 +69,18 @@
     });
   }
 
+  function showLoadError(err) {
+    var box = document.getElementById('load-error');
+    box.innerHTML = '';
+    box.appendChild(el('h3', null, 'Can’t reach the tracker database'));
+    box.appendChild(el('p', null, esc(err && err.message ? err.message : 'The server did not respond.')));
+    var retry = el('button', 'btn primary', 'Try again');
+    retry.addEventListener('click', function () { location.reload(); });
+    box.appendChild(retry);
+    box.hidden = false;
+    document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
+  }
+
   var toastTimer;
   function showToast(msg, isError) {
     var box = document.getElementById('toast');
@@ -84,7 +94,6 @@
   // Writes are optimistic: the change shows immediately, then goes to the
   // server. If the server rejects it we say so and reload the real state.
   function push(promise, what) {
-    if (!backend) return;
     promise.catch(function (err) {
       showToast((what || 'Change') + ' not saved: ' + err.message, true);
       loadFromServer().then(renderAll).catch(function () {});
@@ -117,10 +126,10 @@
   }
 
   function applyAccess() {
-    document.body.classList.toggle('readonly', backend && !isAdmin);
+    document.body.classList.toggle('readonly', !isAdmin);
     var pill = document.getElementById('role-pill');
-    pill.hidden = !(backend && isAdmin);
-    if (backend && !isAdmin) {
+    pill.hidden = !isAdmin;
+    if (!isAdmin) {
       document.querySelectorAll('#task-tbody select, #task-tbody input, #task-tbody textarea, #task-tbody .cell-btn')
         .forEach(function (c) { c.disabled = true; });
     }
@@ -132,61 +141,7 @@
       milestones = data.milestones || {};
       tasksByMilestone = data.tasksByMilestone || {};
       feedback = data.feedback || {};
-      backend = true;
       return data;
-    });
-  }
-
-  /* ================================================================
-     LOCAL DATA LAYER
-     Everything is held in memory (project / milestones / tasksByMilestone
-     / feedback above) and mirrored to localStorage on every change.
-     This replaces the Claude Artifact "db" capability so the app can
-     run as a fully standalone, self-hosted page with no backend.
-     ================================================================ */
-
-  function persist() {
-    if (backend) return;   // MongoDB holds the data; see the API layer above
-    var payload = { project: project, milestones: milestones, tasksByMilestone: tasksByMilestone, feedback: feedback };
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); } catch (e) { /* storage unavailable/full — ignore */ }
-  }
-
-  function loadOrSeed() {
-    var raw = null;
-    try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) {}
-    if (raw) {
-      try {
-        var parsed = JSON.parse(raw);
-        project = parsed.project || project;
-        milestones = parsed.milestones || {};
-        tasksByMilestone = parsed.tasksByMilestone || {};
-        feedback = parsed.feedback || {};
-        return;
-      } catch (e) { /* fall through to seed */ }
-    }
-    seedFromDefault();
-    persist();
-  }
-
-  function seedFromDefault() {
-    var seed = (typeof EFFICIO_SEED !== 'undefined') ? EFFICIO_SEED : null;
-    if (!seed) { project = { name: 'Untitled tracker', description: '' }; milestones = {}; tasksByMilestone = {}; feedback = {}; return; }
-    project = Object.assign({}, seed.project);
-    milestones = {};
-    tasksByMilestone = {};
-    feedback = {};
-    (seed.milestones || []).forEach(function (m) {
-      var id = m.id;
-      milestones[id] = { name: m.name, order: m.order, objective: m.objective || '', allocatedDays: m.allocatedDays || 0, createdAt: m.createdAt || Date.now() };
-      var map = {};
-      (seed.tasks && seed.tasks[id] ? seed.tasks[id] : []).forEach(function (t) {
-        map[t.id] = {
-          taskId: t.taskId, text: t.text, status: t.status || 'Not Started', priority: t.priority || 'Medium',
-          owner: t.owner || '', startDate: t.startDate || '', dueDate: t.dueDate || '', notes: t.notes || '', clientFeedback: t.clientFeedback || '',
-          createdAt: Date.now()
-        };
-      });
-      tasksByMilestone[id] = map;
     });
   }
 
@@ -212,15 +167,8 @@
   function setLive(state) {
     var dot = document.getElementById('live-dot');
     var label = document.getElementById('live-label');
-    dot.classList.toggle('on', state === 'db' || state === 'local');
-    label.textContent = state === 'db' ? 'Live · MongoDB'
-      : state === 'local' ? 'Saved in this browser'
-      : 'Storage unavailable';
-  }
-
-  function storageOk() {
-    try { var k = '__efficio_test__'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return true; }
-    catch (e) { return false; }
+    dot.classList.toggle('on', state === 'live');
+    label.textContent = state === 'live' ? 'Live' : 'Offline';
   }
 
   /* ---------------- nav / views ---------------- */
@@ -796,7 +744,6 @@
   /* ---------------- local data writes ---------------- */
   function writeProjectUpdate(data) {
     project = Object.assign({}, project, data);
-    persist();
     renderHeader();
     push(api('/project', { method: 'PATCH', body: JSON.stringify(data) }), 'Project');
   }
@@ -804,21 +751,18 @@
     var id = uid('m');
     milestones[id] = { name: name, order: order, objective: '', allocatedDays: 0, createdAt: Date.now() };
     tasksByMilestone[id] = {};
-    persist();
     renderAll();
     push(api('/milestones', { method: 'POST', body: JSON.stringify({ id: id, name: name, order: order }) }), 'Milestone');
   }
   function writeMilestoneUpdate(id, data) {
     if (!milestones[id]) return;
     milestones[id] = Object.assign({}, milestones[id], data);
-    persist();
     renderAll();
     push(api('/milestones/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify(data) }), 'Milestone');
   }
   function deleteMilestoneDoc(id) {
     delete milestones[id];
     delete tasksByMilestone[id];
-    persist();
     renderAll();
     push(api('/milestones/' + encodeURIComponent(id), { method: 'DELETE' }), 'Milestone');
   }
@@ -832,7 +776,6 @@
     tasksByMilestone[milestoneId][tid] = {
       taskId: maxId + 1, text: text, status: 'Not Started', priority: 'Medium', owner: '', startDate: '', dueDate: '', notes: '', clientFeedback: '', createdAt: Date.now()
     };
-    persist();
     renderAll();
     push(api('/tasks', { method: 'POST', body: JSON.stringify({ id: tid, milestoneId: milestoneId, text: text }) }), 'Task');
   }
@@ -840,7 +783,6 @@
     var bucket = tasksByMilestone[milestoneId];
     if (!bucket || !bucket[taskDocId]) return;
     bucket[taskDocId] = Object.assign({}, bucket[taskDocId], data);
-    persist();
     renderAll();
     push(api('/tasks/' + encodeURIComponent(taskDocId), { method: 'PATCH', body: JSON.stringify(data) }), 'Task');
   }
@@ -848,7 +790,6 @@
     var bucket = tasksByMilestone[milestoneId];
     if (!bucket) return;
     delete bucket[taskDocId];
-    persist();
     renderAll();
     push(api('/tasks/' + encodeURIComponent(taskDocId), { method: 'DELETE' }), 'Task');
   }
@@ -860,31 +801,30 @@
     // the document keeps its id, only its milestone changes
     tasksByMilestone[toMid][taskDocId] = t;
     delete tasksByMilestone[fromMid][taskDocId];
-    persist();
     renderAll();
     push(api('/tasks/' + encodeURIComponent(taskDocId), { method: 'PATCH', body: JSON.stringify({ milestoneId: toMid }) }), 'Task');
   }
   function createFeedbackDoc(text, author) {
     var id = uid('f');
     feedback[id] = { text: text, author: author || '', createdAt: Date.now() };
-    persist();
     renderNavCounts();
     renderStats();
     renderFeedbackList();
-    if (backend) {
-      api('/feedback', { method: 'POST', body: JSON.stringify({ text: text, author: author || '' }) })
-        .then(function (saved) {
-          // keep the server's id so a later delete hits the right document
-          delete feedback[id];
-          feedback[saved._id] = { text: saved.text, author: saved.author, createdAt: saved.createdAt };
-          renderFeedbackList();
-        })
-        .catch(function (err) { showToast('Feedback not saved: ' + err.message, true); });
-    }
+    api('/feedback', { method: 'POST', body: JSON.stringify({ text: text, author: author || '' }) })
+      .then(function (saved) {
+        // keep the server's id so a later delete hits the right document
+        delete feedback[id];
+        feedback[saved._id] = { text: saved.text, author: saved.author, createdAt: saved.createdAt };
+        renderFeedbackList();
+      })
+      .catch(function (err) {
+        delete feedback[id];
+        renderNavCounts(); renderStats(); renderFeedbackList();
+        showToast('Feedback not saved: ' + err.message, true);
+      });
   }
   function deleteFeedbackDoc(id) {
     delete feedback[id];
-    persist();
     renderNavCounts();
     renderStats();
     renderFeedbackList();
@@ -962,22 +902,18 @@
 
     document.getElementById('exit-dev').addEventListener('click', exitDeveloperMode);
 
-    // Try the server first; a page opened straight from disk falls back to
-    // its own localStorage copy so the tracker still works offline.
+    // Everything comes from MongoDB; there is no local copy to fall back on.
     initAuth()
       .then(loadFromServer)
       .then(function () {
-        setLive('db');
+        setLive('live');
+        document.getElementById('load-error').hidden = true;
         renderAll();
-      })
-      .catch(function () {
-        backend = false;
-        loadOrSeed();
-        setLive(storageOk() ? 'local' : 'off');
-        renderAll();
-      })
-      .then(function () {
         if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeTaskEditors);
+      })
+      .catch(function (err) {
+        setLive('off');
+        showLoadError(err);
       });
 
     // re-fit the inline editors when the column widths change

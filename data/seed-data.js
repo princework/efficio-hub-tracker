@@ -1,4 +1,4 @@
-// Default seed data for the Efficio Hub Tracker (first run only; stored thereafter in localStorage).
+// Seed data for the Efficio Hub tracker: loaded into MongoDB once, by npm run seed.
 var EFFICIO_SEED = {
   "project": {
     "name": "Efficio Hub",
@@ -2168,5 +2168,4 @@ var EFFICIO_SEED = {
   }
 };
 
-// Also usable from Node (the server seeds MongoDB from this same file).
-if (typeof module !== "undefined" && module.exports) module.exports = EFFICIO_SEED;
+module.exports = EFFICIO_SEED;
