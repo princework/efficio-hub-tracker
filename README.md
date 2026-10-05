@@ -37,7 +37,25 @@ against a database you are happy to replace.
 | `ADMIN_KEY` | Unlocks editing via `?key=…` |
 | `PORT` | Local port, default 3100 |
 
-`.env` is git-ignored. On Vercel, set the same variables in the project settings.
+`.env` is git-ignored. `MONGODB_DB` is optional — it defaults to `efficio_hub`.
+
+## Hosting on Vercel
+
+The repo is linked to the Vercel project `efficio-hub-tracker` and deploys from GitHub.
+
+```bash
+vercel login
+vercel link --yes --project efficio-hub-tracker
+grep '^MONGODB_URI=' .env | cut -d= -f2- | vercel env add MONGODB_URI production
+printf 'helios' | vercel env add ADMIN_KEY production      # whatever key you want
+vercel --prod --yes
+```
+
+Only `MONGODB_URI` and `ADMIN_KEY` need to be set in Vercel; the database name falls
+back to `efficio_hub`. `vercel.json` rewrites `/api/*` to `api/index.js`, which serves
+the same Express app, and `public/` is served as static files.
+
+Live: https://efficio-hub-tracker.vercel.app
 
 ## API
 
