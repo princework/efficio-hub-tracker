@@ -355,37 +355,76 @@
     document.getElementById('topbar-count').textContent = totalTasks + (totalTasks === 1 ? ' Task' : ' Tasks');
   }
 
+  // The sidebar is built once and then updated in place. Rebuilding it on every
+  // refresh replaced the button under the pointer, so clicks sometimes landed on
+  // a node that had already been thrown away and nothing happened.
+  var sidebarRows = {};
+  var sidebarKey = '';
+
   function renderSidebarMilestones() {
     var wrap = document.getElementById('sidebar-milestones');
-    wrap.innerHTML = '';
     var ids = orderedMilestoneIds();
-    var total = 0;
-    ids.forEach(function (id) { total += taskIdsFor(id).length; });
+    var key = ids.join(',');
 
-    function addRow(id, label, color, count) {
-      var btn = el('button', 'nav-item ms-item' + (milestoneFilter === id ? ' active' : ''));
-      btn.dataset.milestone = id;
-      var dot = el('span', 'm-dot');
-      dot.style.background = color;
-      btn.appendChild(dot);
-      btn.appendChild(el('span', 'nav-text', esc(label)));
-      btn.appendChild(el('span', 'nav-count', String(count)));
-      btn.title = id === 'all' ? label : (milestones[id] ? milestones[id].name : label);
-      btn.addEventListener('click', function () {
-        milestoneFilter = id;
-        document.getElementById('milestone-filter').value = id;
-        if (activeView !== 'feedback') switchView('tasks');
-        renderTaskTable();
-        renderFeedbackList();
-        renderSidebarMilestones();
-      });
-      wrap.appendChild(btn);
+    if (key !== sidebarKey) {
+      wrap.innerHTML = '';
+      sidebarRows = {};
+      addSidebarRow(wrap, 'all', 'var(--ink-faint)');
+      ids.forEach(function (id) { addSidebarRow(wrap, id, milestoneColor(id)); });
+      sidebarKey = key;
     }
 
-    addRow('all', 'All Milestones', 'var(--ink-faint)', total);
+    var total = 0;
+    ids.forEach(function (id) { total += taskIdsFor(id).length; });
+    updateSidebarRow('all', 'All Milestones', total, 'All Milestones');
     ids.forEach(function (id) {
-      addRow(id, milestoneLabel(id), milestoneColor(id), taskIdsFor(id).length);
+      updateSidebarRow(id, milestoneLabel(id), taskIdsFor(id).length, milestones[id].name);
     });
+    highlightSidebar();
+  }
+
+  function addSidebarRow(wrap, id, color) {
+    var btn = el('button', 'nav-item ms-item');
+    btn.dataset.milestone = id;
+    var dot = el('span', 'm-dot');
+    dot.style.background = color;
+    btn.appendChild(dot);
+    var text = el('span', 'nav-text');
+    var count = el('span', 'nav-count');
+    btn.appendChild(text);
+    btn.appendChild(count);
+    btn.addEventListener('click', function () { selectMilestone(id); });
+    wrap.appendChild(btn);
+    sidebarRows[id] = { btn: btn, text: text, count: count };
+  }
+
+  function updateSidebarRow(id, label, count, title) {
+    var row = sidebarRows[id];
+    if (!row) return;
+    if (row.text.textContent !== label) row.text.textContent = label;
+    var c = String(count);
+    if (row.count.textContent !== c) row.count.textContent = c;
+    row.btn.title = title || label;
+  }
+
+  function highlightSidebar() {
+    Object.keys(sidebarRows).forEach(function (id) {
+      sidebarRows[id].btn.classList.toggle('active', milestoneFilter === id);
+    });
+  }
+
+  // One place decides what picking a milestone does: All Milestones clears the
+  // filter and returns to the overview, a single milestone opens its tasks.
+  function selectMilestone(id, forceView) {
+    milestoneFilter = id;
+    var sel = document.getElementById('milestone-filter');
+    if (sel) sel.value = id;
+    highlightSidebar();
+    stale.tasks = true;
+    stale.feedback = true;
+    var view = forceView || (id === 'all' ? 'dashboard' : (activeView === 'feedback' ? 'feedback' : 'tasks'));
+    if (view !== activeView) switchView(view);
+    else renderActiveView();
   }
 
   function renderStats() {
@@ -442,13 +481,7 @@
       row.appendChild(track);
       row.appendChild(el('div', 'chart-pct mono', pct + '%'));
       row.title = c.done + ' of ' + c.total + ' tasks done';
-      row.addEventListener('click', function () {
-        switchView('tasks');
-        milestoneFilter = id;
-        document.getElementById('milestone-filter').value = id;
-        renderTaskTable();
-        renderSidebarMilestones();
-      });
+      row.addEventListener('click', function () { selectMilestone(id, 'tasks'); });
       wrap.appendChild(row);
     });
   }
@@ -488,11 +521,7 @@
         var fbBtn = el('button', 'm-fb-count', '💬 ' + fbItems.length + ' feedback' + (fbOpenCount ? ' · ' + fbOpenCount + ' open' : ''));
         fbBtn.addEventListener('click', function (e) {
           e.stopPropagation();
-          milestoneFilter = id;
-          document.getElementById('milestone-filter').value = id;
-          switchView('feedback');
-          renderFeedbackList();
-          renderSidebarMilestones();
+          selectMilestone(id, 'feedback');
         });
         card.appendChild(fbBtn);
       }
@@ -505,11 +534,7 @@
       card.appendChild(track);
       card.addEventListener('click', function (e) {
         if (e.target.closest('.m-card-actions')) return;
-        switchView('tasks');
-        milestoneFilter = id;
-        document.getElementById('milestone-filter').value = id;
-        renderTaskTable();
-        renderSidebarMilestones();
+        selectMilestone(id, 'tasks');
       });
       card.style.cursor = 'pointer';
       wrap.appendChild(card);
@@ -612,13 +637,9 @@
         var link = el('button', 'fb-task', 'Task #' + (task.taskId || '') + ' · ' + esc(task.text || ''));
         link.title = 'Show this task';
         link.addEventListener('click', function () {
-          milestoneFilter = f.milestoneId;
-          document.getElementById('milestone-filter').value = f.milestoneId;
           searchText = (task.text || '').slice(0, 40).toLowerCase();
           document.getElementById('search-input').value = (task.text || '').slice(0, 40);
-          switchView('tasks');
-          renderTaskTable();
-          renderSidebarMilestones();
+          selectMilestone(f.milestoneId, 'tasks');
         });
         where.appendChild(link);
       } else {
@@ -1246,11 +1267,10 @@
     document.getElementById('search-input').addEventListener('input', function (e) {
       searchText = e.target.value.trim().toLowerCase();
       renderTaskTable();
+      stale.tasks = false;
     });
     document.getElementById('milestone-filter').addEventListener('change', function (e) {
-      milestoneFilter = e.target.value;
-      renderTaskTable();
-      renderSidebarMilestones();
+      selectMilestone(e.target.value, activeView);
     });
     document.getElementById('status-filter').addEventListener('change', function (e) {
       statusFilter = e.target.value;
@@ -1266,9 +1286,9 @@
       document.getElementById('status-filter').value = 'all';
       document.getElementById('priority-filter').value = 'all';
       document.getElementById('milestone-filter').value = 'all';
-      renderTaskTable();
-      renderSidebarMilestones();
+      highlightSidebar();
       stale.feedback = true;
+      renderTaskTable();
     });
     document.getElementById('add-task-btn').addEventListener('click', openAddTaskModal);
     document.getElementById('fb-status-filter').addEventListener('change', function (e) {
