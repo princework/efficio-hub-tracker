@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Efficio Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <span class="brand-name" id="proj-title">Efficio Hub</span>
+  </div>
+  <div class="topbar-actions">
+    <span class="live"><span class="live-dot" id="live-dot"></span><span id="live-label">Loading…</span></span>
+    <span class="role-pill" id="role-pill" hidden>🛠 Developer mode <button type="button" id="exit-dev" title="Switch this browser back to the client view">exit</button></span>
+    <span class="count-chip" id="topbar-count">0 Tasks</span>
+    <button class="btn" id="export-btn">⬇ Export CSV</button>
+    <button class="btn primary" id="feedback-btn">💬 Give Feedback</button>
+    <button class="icon-btn" id="theme-btn" title="Switch light / dark" aria-label="Switch light or dark theme">
+      <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.6v2.6M12 19.8v2.6M4.2 4.2l1.9 1.9M17.9 17.9l1.9 1.9M1.6 12h2.6M19.8 12h2.6M4.2 19.8l1.9-1.9M17.9 6.1l1.9-1.9"/></svg>
+      <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z"/></svg>
+    </button>
+    <button class="icon-btn" id="settings-btn" title="Project settings" aria-label="Project settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.96 19a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.7a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.04z"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="shell">
+<nav class="sidebar">
+  <div class="nav-group">
+    <div class="nav-label">Milestones</div>
+    <div id="sidebar-milestones"></div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Views</div>
+    <button class="nav-item active" data-view="dashboard"><span class="nav-icon">📊</span>Overview</button>
+    <button class="nav-item" data-view="tasks"><span class="nav-icon">📋</span>Task Table</button>
+    <button class="nav-item" data-view="milestones"><span class="nav-icon">🏁</span>Milestones</button>
+    <button class="nav-item" data-view="feedback"><span class="nav-icon">💬</span>Client Feedback</button>
+  </div>
+</nav>
+
+<main class="main">
+
+  <!-- OVERVIEW -->
+  <section class="view active" id="view-dashboard">
+    <section class="stats" id="stats"></section>
+    <h2 class="section-title">Milestone Progress <span class="section-hint">— click a milestone to see its tasks</span></h2>
+    <div class="chart-card">
+      <div id="chart"></div>
+    </div>
+  </section>
+
+  <!-- MILESTONES -->
+  <section class="view" id="view-milestones">
+    <div class="toolbar">
+      <span class="toolbar-note">Every milestone from the implementation plan, with live task completion.</span>
+      <button class="btn ghost" id="add-milestone-btn" style="margin-left:auto;">+ Add milestone</button>
+    </div>
+    <div class="m-grid" id="milestones-grid"></div>
+  </section>
+
+  <!-- TASK TABLE -->
+  <section class="view" id="view-tasks">
+    <div class="toolbar">
+      <div class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search-input" placeholder="Search tasks, notes or feedback…" aria-label="Search tasks">
+      </div>
+      <select class="select-filter" id="milestone-filter"><option value="all">All milestones</option></select>
+      <div class="chips" id="filter-chips">
+        <button class="chip active" data-filter="all">All</button>
+        <button class="chip" data-filter="Not Started">Not started</button>
+        <button class="chip" data-filter="In Progress">In progress</button>
+        <button class="chip" data-filter="Done">Done</button>
+      </div>
+    </div>
+    <div class="table-card">
+      <div class="task-table-wrap">
+        <table class="task-table">
+          <thead><tr><th>S.No</th><th>Milestone</th><th>Task</th><th>Status</th><th>Priority</th><th>Start</th><th>Notes &amp; Feedback</th><th></th></tr></thead>
+          <tbody id="task-tbody"></tbody>
+        </table>
+      </div>
+      <div class="add-task-row">
+        <select class="m-select" id="add-task-milestone"></select>
+        <input type="text" id="add-task-input" placeholder="Add a task…">
+        <button class="btn small primary" id="add-task-btn">+ Add</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- CLIENT FEEDBACK -->
+  <section class="view" id="view-feedback">
+    <div class="toolbar">
+      <span class="toolbar-note">Messages and comments shared with the project team.</span>
+      <button class="btn primary" id="add-feedback-btn" style="margin-left:auto;">+ Give Feedback</button>
+    </div>
+    <div class="feedback-list" id="feedback-list"></div>
+  </section>
+</main>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<div class="modal-overlay" id="modal-overlay" hidden>
+  <div class="modal" id="modal-box"></div>
+</div>
+
+<script src="seed-data.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
