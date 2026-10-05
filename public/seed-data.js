@@ -2167,3 +2167,6 @@ var EFFICIO_SEED = {
     ]
   }
 };
+
+// Also usable from Node (the server seeds MongoDB from this same file).
+if (typeof module !== "undefined" && module.exports) module.exports = EFFICIO_SEED;
