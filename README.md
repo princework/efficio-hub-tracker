@@ -25,6 +25,8 @@ npm start                # http://localhost:3100
 ```
 
 `npm run check` prints what is actually stored in Atlas (task counts per milestone).
+`npm run reseed` wipes the tracker collections and loads the seed again — only run it
+against a database you are happy to replace.
 
 ### Environment
 
@@ -66,6 +68,7 @@ middleware/auth.js  developer-key check
 public/           the tracker page (index.html, style.css, script.js, seed-data.js)
 scripts/seed.js   npm run seed
 scripts/check.js  npm run check
+scripts/reseed.js npm run reseed
 ```
 
 ### Offline use

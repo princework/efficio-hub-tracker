@@ -1,13 +1,14 @@
 {
   "name": "efficio-hub-tracker",
   "version": "1.0.0",
-  "description": "Efficio Hub · Zoho implementation tracker with MongoDB Atlas sync",
+  "description": "Efficio Hub \u00b7 Zoho implementation tracker with MongoDB Atlas sync",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
     "seed": "node scripts/seed.js",
-    "check": "node scripts/check.js"
+    "check": "node scripts/check.js",
+    "reseed": "node scripts/reseed.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
