@@ -16,8 +16,8 @@
   var priorityFilter = 'all';
   var milestoneFilter = 'all';
   var searchText = '';
-  var STATUS_OPTS = ['Pending', 'In Progress', 'Done'];
-  var STATUS_CLASS = { 'Pending': 'st-todo', 'In Progress': 'st-active', 'Done': 'st-done' };
+  var STATUS_OPTS = ['Pending', 'In Progress', 'Completed', 'On Hold'];
+  var STATUS_CLASS = { 'Pending': 'st-todo', 'In Progress': 'st-active', 'Completed': 'st-done', 'On Hold': 'st-hold' };
   var PRIORITY_OPTS = ['Low', 'Medium', 'High'];
   var PRIORITY_CLASS = { 'Low': 'pr-low', 'Medium': 'pr-medium', 'High': 'pr-high' };
   // one colour per milestone, reused across the sidebar, the table and the charts
@@ -176,10 +176,7 @@
       milestones = data.milestones || {};
       tasksByMilestone = data.tasksByMilestone || {};
       feedback = data.feedback || {};
-      var wrap = document.querySelector('.task-table-wrap');
-      var scroll = wrap ? wrap.scrollTop : 0;
-      renderAll();
-      if (wrap) document.querySelector('.task-table-wrap').scrollTop = scroll;
+      withTablePosition(renderAll);
     }).catch(function () { setLive('off'); });
   }
 
@@ -252,6 +249,41 @@
     if (!h) return;                       // not laid out yet (hidden view)
     ta.style.height = Math.max(h, 34) + 'px';
   }
+  // A re-render rebuilds all 172 rows, which throws away the scroll position
+  // and the focused control. This puts both back, so editing a row in the
+  // middle of the table leaves you looking at that row.
+  function withTablePosition(fn) {
+    var wrap = document.querySelector('.task-table-wrap');
+    var scroll = wrap ? wrap.scrollTop : 0;
+    var pageScroll = window.scrollY;
+    var active = document.activeElement;
+    var mark = null;
+    if (active && active.closest) {
+      var row = active.closest('#task-tbody tr');
+      if (row) {
+        mark = {
+          index: [].indexOf.call(row.parentNode.children, row),
+          cls: (active.className || '').split(' ')[0],
+          start: active.selectionStart, end: active.selectionEnd
+        };
+      }
+    }
+    fn();
+    var after = document.querySelector('.task-table-wrap');
+    if (after) after.scrollTop = scroll;
+    window.scrollTo(0, pageScroll);
+    if (mark) {
+      var rows = document.querySelectorAll('#task-tbody tr');
+      var target = rows[mark.index] && mark.cls && rows[mark.index].querySelector('.' + mark.cls);
+      if (target) {
+        try { target.focus({ preventScroll: true }); } catch (e) { target.focus(); }
+        if (mark.start != null && target.setSelectionRange) {
+          try { target.setSelectionRange(mark.start, mark.end); } catch (e) {}
+        }
+      }
+    }
+  }
+
   function sizeTaskEditors() {
     [].slice.call(document.querySelectorAll('#task-tbody textarea')).forEach(autoGrow);
   }
@@ -279,11 +311,12 @@
   function taskIdsFor(id) { return Object.keys(tasksFor(id)); }
   function milestoneCounts(id) {
     var ids = taskIdsFor(id);
-    var counts = { total: ids.length, todo: 0, active: 0, done: 0 };
+    var counts = { total: ids.length, todo: 0, active: 0, done: 0, hold: 0 };
     ids.forEach(function (tid) {
       var s = tasksFor(id)[tid].status;
-      if (s === 'Done') counts.done++;
+      if (s === 'Completed') counts.done++;
       else if (s === 'In Progress') counts.active++;
+      else if (s === 'On Hold') counts.hold++;
       else counts.todo++;
     });
     return counts;
@@ -369,10 +402,10 @@
   function renderStats() {
     var wrap = document.getElementById('stats');
     wrap.innerHTML = '';
-    var totals = { total: 0, todo: 0, active: 0, done: 0 };
+    var totals = { total: 0, todo: 0, active: 0, done: 0, hold: 0 };
     orderedMilestoneIds().forEach(function (id) {
       var c = milestoneCounts(id);
-      totals.total += c.total; totals.todo += c.todo; totals.active += c.active; totals.done += c.done;
+      totals.total += c.total; totals.todo += c.todo; totals.active += c.active; totals.done += c.done; totals.hold += c.hold;
     });
     var pct = totals.total ? Math.round(totals.done / totals.total * 100) : 0;
     function share(n) { return totals.total ? Math.round(n / totals.total * 100) : 0; }
@@ -387,6 +420,7 @@
     tile('done-n', 'Completed', totals.done, share(totals.done));
     tile('active-n', 'In Progress', totals.active, share(totals.active));
     tile('todo-n', 'Pending', totals.todo, share(totals.todo));
+    if (totals.hold) tile('hold-n', 'On Hold', totals.hold, share(totals.hold));
     tile('accent-n', 'Overall %', pct + '%', pct);
     var fbIds = feedbackIds();
     var fbOpen = fbIds.filter(function (id) { return feedback[id].status !== 'Resolved'; }).length;
@@ -541,117 +575,6 @@
     }
   }
 
-  function buildTaskRow(sno, milestoneId, taskDocId, t) {
-    var tr = document.createElement('tr');
-
-    var snoTd = document.createElement('td'); snoTd.className = 'task-sno mono'; snoTd.textContent = sno;
-    tr.appendChild(snoTd);
-
-    var mTd = document.createElement('td');
-    var mCell = el('div', 'm-cell');
-    var mName = (milestones[milestoneId] && milestones[milestoneId].name) || '';
-    var mLabel = el('div', 'm-cell-label');
-    mLabel.setAttribute('aria-hidden', 'true');
-    var code = milestoneCode(milestoneId);
-    if (code) {
-      var mCode = el('span', 'm-code', esc(code));
-      mCode.style.color = milestoneColor(milestoneId);
-      mLabel.appendChild(mCode);
-    }
-    mLabel.appendChild(document.createTextNode(milestoneLabel(milestoneId)));
-    var mSel = document.createElement('select');
-    mSel.className = 'm-select overlay';
-    mSel.setAttribute('aria-label', 'Milestone');
-    orderedMilestoneIds().forEach(function (mid) {
-      var o = document.createElement('option'); o.value = mid; o.textContent = milestones[mid].name;
-      if (mid === milestoneId) o.selected = true;
-      mSel.appendChild(o);
-    });
-    mSel.title = mName;
-    mSel.addEventListener('change', function () { moveTaskToMilestone(milestoneId, taskDocId, mSel.value); });
-    mCell.appendChild(mLabel);
-    mCell.appendChild(mSel);
-    mTd.appendChild(mCell);
-    tr.appendChild(mTd);
-
-    var textTd = document.createElement('td');
-    var textInput = document.createElement('textarea');
-    textInput.className = 'task-text-input'; textInput.value = t.text || ''; textInput.rows = 1;
-    textInput.addEventListener('input', function () { autoGrow(textInput); });
-    textInput.addEventListener('blur', function () {
-      var v = textInput.value.trim();
-      if (v && v !== t.text) writeTaskUpdate(milestoneId, taskDocId, { text: v });
-    });
-    textTd.appendChild(textInput);
-    tr.appendChild(textTd);
-
-    var statusTd = document.createElement('td');
-    var sel = document.createElement('select');
-    sel.className = 'status-select ' + (STATUS_CLASS[t.status] || 'st-todo');
-    STATUS_OPTS.forEach(function (opt) {
-      var o = document.createElement('option'); o.value = opt; o.textContent = opt;
-      if (t.status === opt) o.selected = true;
-      sel.appendChild(o);
-    });
-    sel.addEventListener('change', function () {
-      sel.className = 'status-select ' + (STATUS_CLASS[sel.value] || 'st-todo');
-      writeTaskUpdate(milestoneId, taskDocId, { status: sel.value });
-    });
-    statusTd.appendChild(sel);
-    tr.appendChild(statusTd);
-
-    var prioTd = document.createElement('td');
-    var prioSel = document.createElement('select');
-    var curPrio = t.priority || 'Medium';
-    prioSel.className = 'prio-select ' + (PRIORITY_CLASS[curPrio] || 'pr-medium');
-    PRIORITY_OPTS.forEach(function (opt) {
-      var o = document.createElement('option'); o.value = opt; o.textContent = opt;
-      if (curPrio === opt) o.selected = true;
-      prioSel.appendChild(o);
-    });
-    prioSel.addEventListener('change', function () {
-      prioSel.className = 'prio-select ' + (PRIORITY_CLASS[prioSel.value] || 'pr-medium');
-      writeTaskUpdate(milestoneId, taskDocId, { priority: prioSel.value });
-    });
-    prioTd.appendChild(prioSel);
-    tr.appendChild(prioTd);
-
-    var startTd = document.createElement('td');
-    if (isAdmin) {
-      var startInput = document.createElement('input');
-      startInput.type = 'date'; startInput.className = 'date-input'; startInput.value = t.startDate || '';
-      startInput.addEventListener('change', function () { writeTaskUpdate(milestoneId, taskDocId, { startDate: startInput.value }); });
-      startTd.appendChild(startInput);
-    } else {
-      // the client link reads as plain text rather than an empty date field
-      startTd.appendChild(el('span', 'cell-text', fmtDate(t.startDate)));
-    }
-    tr.appendChild(startTd);
-
-    // client feedback opens a small editor, which keeps the table inside the
-    // window instead of scrolling sideways
-    // feedback on this task lives in its own thread, which anyone can add to
-    var fbTd = document.createElement('td');
-    var items = feedbackFor(taskDocId);
-    var openCount = items.filter(function (f) { return f.status !== 'Resolved'; }).length;
-    var fbBtn = el('button', 'bubble-btn' + (items.length ? ' has' : ''), '💬');
-    if (items.length) fbBtn.appendChild(el('span', 'n', String(items.length)));
-    fbBtn.title = items.length
-      ? items.length + ' feedback item' + (items.length === 1 ? '' : 's') + (openCount ? ' · ' + openCount + ' open' : '')
-      : 'Give feedback on this task';
-    fbBtn.setAttribute('aria-label', fbBtn.title);
-    fbBtn.addEventListener('click', function () { openFeedbackModal(milestoneId, taskDocId); });
-    fbTd.appendChild(fbBtn);
-    tr.appendChild(fbTd);
-
-    var delTd = document.createElement('td'); delTd.className = 'row-del';
-    var del = el('button', 'mini-btn', TRASH_SVG); del.title = 'Delete task';
-    bindConfirm(del, function () { deleteTaskDoc(milestoneId, taskDocId); });
-    delTd.appendChild(del);
-    tr.appendChild(delTd);
-
-    return tr;
-  }
 
   /* ---------------- render: client feedback ---------------- */
   /* ---------------- render: client feedback ---------------- */
@@ -1204,7 +1127,7 @@
     var bucket = tasksByMilestone[milestoneId];
     if (!bucket || !bucket[taskDocId]) return;
     bucket[taskDocId] = Object.assign({}, bucket[taskDocId], data);
-    renderAll();
+    withTablePosition(renderAll);
     push(api('/tasks/' + encodeURIComponent(taskDocId), { method: 'PATCH', body: JSON.stringify(data) }), 'Task');
   }
   function deleteTaskDoc(milestoneId, taskDocId) {
@@ -1222,7 +1145,7 @@
     // the document keeps its id, only its milestone changes
     tasksByMilestone[toMid][taskDocId] = t;
     delete tasksByMilestone[fromMid][taskDocId];
-    renderAll();
+    withTablePosition(renderAll);
     push(api('/tasks/' + encodeURIComponent(taskDocId), { method: 'PATCH', body: JSON.stringify({ milestoneId: toMid }) }), 'Task');
   }
   function createFeedbackDoc(item) {

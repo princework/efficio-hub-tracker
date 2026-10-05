@@ -1,4 +1,4 @@
-// Renames the stored status 'Not Started' to 'Pending'.
+// Brings stored statuses onto the current set: Pending, In Progress, Completed, On Hold.
 require('dotenv').config();
 const mongoose = require('mongoose');
 
@@ -8,10 +8,12 @@ const mongoose = require('mongoose');
     serverSelectionTimeoutMS: 15000,
   });
   const tasks = mongoose.connection.db.collection('tasks');   // raw, to bypass the new enum
-  const before = await tasks.countDocuments({ status: 'Not Started' });
-  const res = await tasks.updateMany({ status: 'Not Started' }, { $set: { status: 'Pending' } });
-  console.log(`'Not Started' documents: ${before} → renamed ${res.modifiedCount}`);
-  for (const s of ['Pending', 'In Progress', 'Done', 'Not Started']) {
+  const renames = { 'Not Started': 'Pending', 'Done': 'Completed' };
+  for (const [from, to] of Object.entries(renames)) {
+    const res = await tasks.updateMany({ status: from }, { $set: { status: to } });
+    if (res.modifiedCount) console.log(`renamed ${res.modifiedCount} × '${from}' → '${to}'`);
+  }
+  for (const s of ['Pending', 'In Progress', 'Completed', 'On Hold', 'Not Started', 'Done']) {
     console.log(`${s.padEnd(12)} ${await tasks.countDocuments({ status: s })}`);
   }
   await mongoose.disconnect();

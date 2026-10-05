@@ -55,7 +55,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; max-width: 100%; overflow-x: hidden; }
+html, body { margin: 0; padding: 0; max-width: 100%; }
 body {
   background: var(--bg); color: var(--ink);
   font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -187,13 +187,18 @@ button { font-family: inherit; }
 #add-task-btn { margin-left: auto; }
 
 /* ---------------- task table ---------------- */
-.table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
-.task-table-wrap { overflow: auto; max-height: calc(100vh - 250px); }
+/* no overflow here: it would trap the sticky table header */
+.table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.task-table thead th:first-child { border-top-left-radius: var(--radius); }
+.task-table thead th:last-child { border-top-right-radius: var(--radius); }
+/* the page scrolls, not the table: one scrollbar, and the header sticks under
+   the top bar. Narrow screens get a horizontal scroller instead. */
+.task-table-wrap { overflow: visible; }
 table.task-table { width: 100%; border-collapse: collapse; min-width: 860px; table-layout: fixed; }
 table.task-table th {
   text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--ink-faint);
   font-weight: 700; padding: 12px 8px; border-bottom: 1px solid var(--border); background: var(--surface);
-  white-space: normal; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; position: sticky; top: 0; z-index: 2;
+  white-space: normal; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; position: sticky; top: 62px; z-index: 2;
 }
 table.task-table td { padding: 11px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 table.task-table tbody tr:hover td { background: var(--surface-2); }
@@ -296,6 +301,8 @@ table.task-table th:nth-child(8), table.task-table td:nth-child(8) { width: 3%; 
   .topbar .live { display: none; }
 }
 @media (max-width: 1040px) {
+  .task-table-wrap { overflow-x: auto; }
+  table.task-table th { position: static; }
   .sidebar { display: none; }
   .main { padding: 18px 16px 60px; }
   .topbar { padding: 0 14px; gap: 10px; }
@@ -405,3 +412,7 @@ body.readonly .status-select, body.readonly .prio-select { padding-right: 11px; 
 .bubble-btn .n { font-size: 11.5px; font-weight: 800; color: var(--accent); }
 .bubble-btn.has { border-color: var(--accent-line); background: var(--accent-soft); }
 .stat.risk-n .n, .stat.risk-n .meter span { color: var(--risk); }
+
+/* On Hold */
+.status-select.st-hold { background-color: var(--prio-med-soft); color: var(--prio-med); }
+.stat.hold-n .n, .stat.hold-n .meter span { color: var(--prio-med); }

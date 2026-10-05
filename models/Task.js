@@ -6,7 +6,7 @@ const taskSchema = new mongoose.Schema({
   milestoneId:    { type: String, required: true, ref: 'Milestone' },
   taskId:         { type: Number, default: 0 },
   text:           { type: String, required: true },
-  status:         { type: String, enum: ['Pending', 'In Progress', 'Done'], default: 'Pending' },
+  status:         { type: String, enum: ['Pending', 'In Progress', 'Completed', 'On Hold'], default: 'Pending' },
   priority:       { type: String, enum: ['Low', 'Medium', 'High'], default: 'Medium' },
   owner:          { type: String, default: '' },
   startDate:      { type: String, default: '' },
