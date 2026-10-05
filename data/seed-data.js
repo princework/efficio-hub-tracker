@@ -11,6 +11,7 @@ var EFFICIO_SEED = {
   "milestones": [
     {
       "id": "m1",
+      "shortName": "Requirement Gathering",
       "allocatedDays": 2,
       "createdAt": 1790832000015,
       "name": "M1 – Requirement Gathering & Solution Blueprint",
@@ -19,6 +20,7 @@ var EFFICIO_SEED = {
     },
     {
       "id": "m2",
+      "shortName": "Creator Foundation",
       "allocatedDays": 7,
       "createdAt": 1790832000027,
       "name": "M2 – Zoho Creator Foundation & Client Setup",
@@ -27,6 +29,7 @@ var EFFICIO_SEED = {
     },
     {
       "id": "m3",
+      "shortName": "Finance & Compliance",
       "allocatedDays": 10,
       "createdAt": 1790832000046,
       "name": "M3 – Client Finance Operations, Task & Statutory Compliance Workflow",
@@ -35,6 +38,7 @@ var EFFICIO_SEED = {
     },
     {
       "id": "m4",
+      "shortName": "Books & Billing",
       "allocatedDays": 10,
       "createdAt": 1790832000080,
       "name": "M4 – Zoho Books – Efficio Hub Internal Finance & Billing",
@@ -43,6 +47,7 @@ var EFFICIO_SEED = {
     },
     {
       "id": "m5",
+      "shortName": "Compliance Dashboard",
       "allocatedDays": 5,
       "createdAt": 1790832000102,
       "name": "M5 – Finance Compliance Management Dashboard & Calendar",
@@ -51,6 +56,7 @@ var EFFICIO_SEED = {
     },
     {
       "id": "m6",
+      "shortName": "HRMS & Employees",
       "allocatedDays": 10,
       "createdAt": 1790832000122,
       "name": "M6 – HRMS & Employee Management",
@@ -59,6 +65,7 @@ var EFFICIO_SEED = {
     },
     {
       "id": "m7",
+      "shortName": "Desk & Support",
       "allocatedDays": 5,
       "createdAt": 1790832000141,
       "name": "M7 – Zoho Desk – Client Service & Support Management",
@@ -67,6 +74,7 @@ var EFFICIO_SEED = {
     },
     {
       "id": "m8",
+      "shortName": "Management Reporting",
       "allocatedDays": 5,
       "createdAt": 1790832000162,
       "name": "M8 – Management Reporting & Operational Dashboards",
@@ -75,6 +83,7 @@ var EFFICIO_SEED = {
     },
     {
       "id": "m9",
+      "shortName": "UAT & Go-Live",
       "allocatedDays": 3,
       "createdAt": 1790832000184,
       "name": "M9 – UAT, Training, Go-Live & Handover",

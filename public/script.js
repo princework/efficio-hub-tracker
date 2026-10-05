@@ -103,6 +103,7 @@
   // Writes are optimistic: the change shows immediately, then goes to the
   // server. If the server rejects it we say so and reload the real state.
   function push(promise, what) {
+    lastWriteAt = Date.now();
     promise.catch(function (err) {
       showToast((what || 'Change') + ' not saved: ' + err.message, true);
       loadFromServer().then(renderAll).catch(function () {});
@@ -144,6 +145,51 @@
     }
   }
 
+  /* ---------------- live refresh ----------------
+     The page polls for changes so a second browser (or the client link) picks
+     up edits without a reload. It stays out of the way: no poll while the tab
+     is hidden, while a dialog is open, while a field has focus, or just after
+     this browser wrote something. */
+  var POLL_MS = 20000;
+  var pollTimer = null;
+  var lastWriteAt = 0;
+
+  function snapshot(p, m, t, f) {
+    return JSON.stringify({ p: p, m: m, t: t, f: f });
+  }
+  function localSnapshot() { return snapshot(project, milestones, tasksByMilestone, feedback); }
+
+  function busyEditing() {
+    if (!overlay.hidden) return true;
+    var a = document.activeElement;
+    return !!(a && a.closest && a.closest('#task-tbody, .modal, .toolbar'));
+  }
+
+  function refresh() {
+    if (document.hidden || busyEditing() || Date.now() - lastWriteAt < 4000) return Promise.resolve();
+    var before = localSnapshot();
+    return api('/state').then(function (data) {
+      setLive('live');
+      if (snapshot(data.project, data.milestones, data.tasksByMilestone, data.feedback) === before) return;
+      project = data.project || project;
+      milestones = data.milestones || {};
+      tasksByMilestone = data.tasksByMilestone || {};
+      feedback = data.feedback || {};
+      var wrap = document.querySelector('.task-table-wrap');
+      var scroll = wrap ? wrap.scrollTop : 0;
+      renderAll();
+      if (wrap) document.querySelector('.task-table-wrap').scrollTop = scroll;
+    }).catch(function () { setLive('off'); });
+  }
+
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(refresh, POLL_MS);
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) refresh();
+    });
+  }
+
   function loadFromServer() {
     return api('/state').then(function (data) {
       project = data.project || project;
@@ -181,6 +227,18 @@
   }
 
   /* ---------------- nav / views ---------------- */
+  // The table and the sidebar show a short label; the full name stays in the
+  // tooltip, the overview and the milestone cards.
+  function milestoneLabel(id) {
+    var m = milestones[id];
+    if (!m) return '';
+    return m.shortName || splitMilestoneName(m.name).title || m.name;
+  }
+  function milestoneCode(id) {
+    var m = milestones[id];
+    return m ? splitMilestoneName(m.name).code : '';
+  }
+
   function splitMilestoneName(name) {
     var m = /^\s*(M\d+)\s*[–—-]\s*(.+)$/.exec(name || '');
     return m ? { code: m[1], title: m[2] } : { code: '', title: name || '' };
@@ -265,7 +323,7 @@
       btn.appendChild(dot);
       btn.appendChild(el('span', 'nav-text', esc(label)));
       btn.appendChild(el('span', 'nav-count', String(count)));
-      btn.title = label;
+      btn.title = id === 'all' ? label : (milestones[id] ? milestones[id].name : label);
       btn.addEventListener('click', function () {
         milestoneFilter = id;
         document.getElementById('milestone-filter').value = id;
@@ -278,8 +336,7 @@
 
     addRow('all', 'All Milestones', 'var(--ink-faint)', total);
     ids.forEach(function (id) {
-      var parts = splitMilestoneName(milestones[id].name);
-      addRow(id, parts.title || milestones[id].name, milestoneColor(id), taskIdsFor(id).length);
+      addRow(id, milestoneLabel(id), milestoneColor(id), taskIdsFor(id).length);
     });
   }
 
@@ -450,15 +507,15 @@
     var mTd = document.createElement('td');
     var mCell = el('div', 'm-cell');
     var mName = (milestones[milestoneId] && milestones[milestoneId].name) || '';
-    var mParts = splitMilestoneName(mName);
     var mLabel = el('div', 'm-cell-label');
     mLabel.setAttribute('aria-hidden', 'true');
-    if (mParts.code) {
-      var mCode = el('span', 'm-code', esc(mParts.code));
+    var code = milestoneCode(milestoneId);
+    if (code) {
+      var mCode = el('span', 'm-code', esc(code));
       mCode.style.color = milestoneColor(milestoneId);
       mLabel.appendChild(mCode);
     }
-    mLabel.appendChild(document.createTextNode(mParts.title || mName));
+    mLabel.appendChild(document.createTextNode(milestoneLabel(milestoneId)));
     var mSel = document.createElement('select');
     mSel.className = 'm-select overlay';
     mSel.setAttribute('aria-label', 'Milestone');
@@ -583,11 +640,19 @@
     var box = el('div');
     box.appendChild(el('h3', null, editing ? 'Edit milestone' : 'New milestone'));
     var field = el('div', 'field');
-    field.appendChild(el('label', null, 'Name'));
+    field.appendChild(el('label', null, 'Full name'));
     var input = document.createElement('input');
-    input.type = 'text'; input.value = m.name || ''; input.placeholder = 'e.g. Milestone 10: Post-launch Support';
+    input.type = 'text'; input.value = m.name || ''; input.placeholder = 'e.g. M10 – Post-launch Support';
     field.appendChild(input);
     box.appendChild(field);
+
+    var shortField = el('div', 'field');
+    shortField.appendChild(el('label', null, 'Short name'));
+    var shortInput = document.createElement('input');
+    shortInput.type = 'text'; shortInput.value = m.shortName || '';
+    shortInput.placeholder = 'Shown in the table and sidebar, e.g. Post-launch';
+    shortField.appendChild(shortInput);
+    box.appendChild(shortField);
 
     var actionsRow = el('div', 'modal-actions');
     if (editing) {
@@ -604,8 +669,9 @@
     save.addEventListener('click', function () {
       var name = input.value.trim();
       if (!name) { input.focus(); return; }
-      if (editing) { writeMilestoneUpdate(id, { name: name }); }
-      else { createMilestoneDoc(name, m.order); }
+      var shortName = shortInput.value.trim();
+      if (editing) { writeMilestoneUpdate(id, { name: name, shortName: shortName }); }
+      else { createMilestoneDoc(name, m.order, shortName); }
       closeModal();
     });
     right.appendChild(cancel); right.appendChild(save);
@@ -796,12 +862,12 @@
     renderHeader();
     push(api('/project', { method: 'PATCH', body: JSON.stringify(data) }), 'Project');
   }
-  function createMilestoneDoc(name, order) {
+  function createMilestoneDoc(name, order, shortName) {
     var id = uid('m');
-    milestones[id] = { name: name, order: order, objective: '', allocatedDays: 0, createdAt: Date.now() };
+    milestones[id] = { name: name, shortName: shortName || '', order: order, objective: '', allocatedDays: 0, createdAt: Date.now() };
     tasksByMilestone[id] = {};
     renderAll();
-    push(api('/milestones', { method: 'POST', body: JSON.stringify({ id: id, name: name, order: order }) }), 'Milestone');
+    push(api('/milestones', { method: 'POST', body: JSON.stringify({ id: id, name: name, shortName: shortName || '', order: order }) }), 'Milestone');
   }
   function writeMilestoneUpdate(id, data) {
     if (!milestones[id]) return;
@@ -956,6 +1022,7 @@
         setLive('live');
         document.getElementById('load-error').hidden = true;
         renderAll();
+        startPolling();
         if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeTaskEditors);
       })
       .catch(function (err) {

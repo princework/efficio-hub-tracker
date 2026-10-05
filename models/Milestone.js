@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const milestoneSchema = new mongoose.Schema({
   _id:           { type: String },
   name:          { type: String, required: true },
+  shortName:     { type: String, default: '' },   // what the table and sidebar show
   order:         { type: Number, default: 0 },
   objective:     { type: String, default: '' },
   allocatedDays: { type: Number, default: 0 },

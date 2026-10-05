@@ -14,6 +14,7 @@ router.post('/', requireAdmin, async (req, res) => {
     const milestone = await Milestone.create({
       _id: req.body.id || newId('m'),
       name,
+      shortName: req.body.shortName || '',
       order: req.body.order != null ? Number(req.body.order) : (last?.order || 0) + 10,
       objective: req.body.objective || '',
       allocatedDays: Number(req.body.allocatedDays) || 0,
@@ -28,7 +29,7 @@ router.post('/', requireAdmin, async (req, res) => {
 router.patch('/:id', requireAdmin, async (req, res) => {
   try {
     const update = {};
-    ['name', 'order', 'objective', 'allocatedDays'].forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
+    ['name', 'shortName', 'order', 'objective', 'allocatedDays'].forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
     const milestone = await Milestone.findByIdAndUpdate(req.params.id, { $set: update }, { new: true, runValidators: true }).lean();
     if (!milestone) return res.status(404).json({ success: false, message: 'Milestone not found' });
     res.json({ success: true, data: milestone });

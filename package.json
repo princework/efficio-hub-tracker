@@ -8,7 +8,8 @@
     "dev": "node server.js",
     "seed": "node scripts/seed.js",
     "check": "node scripts/check.js",
-    "reseed": "node scripts/reseed.js"
+    "reseed": "node scripts/reseed.js",
+    "migrate": "node scripts/migrate-shortnames.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
