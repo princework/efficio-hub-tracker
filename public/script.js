@@ -134,6 +134,12 @@
     document.body.classList.toggle('readonly', !isAdmin);
     var pill = document.getElementById('role-pill');
     pill.hidden = !isAdmin;
+    // the editing entry points are hidden outright, not only by stylesheet, so
+    // the client view holds up even if the CSS never arrives
+    ['add-milestone-btn', 'add-task-btn', 'settings-btn'].forEach(function (btnId) {
+      var b = document.getElementById(btnId);
+      if (b) { b.hidden = !isAdmin; b.disabled = !isAdmin; }
+    });
     if (!isAdmin) {
       // everything is locked except the feedback bubble, which is the client's way in
       document.querySelectorAll('#task-tbody select, #task-tbody input, #task-tbody textarea')
@@ -284,6 +290,13 @@
   });
 
   /* ---------------- computed helpers ---------------- */
+  function nextMilestoneOrder() {
+    // step past the highest order in use, so a new milestone lands last even
+    // after earlier ones have been deleted
+    return orderedMilestoneIds().reduce(function (max, id) {
+      return Math.max(max, Number(milestones[id].order) || 0);
+    }, 0) + 10;
+  }
   function orderedMilestoneIds() {
     return Object.keys(milestones).sort(function (a, b) { return (milestones[a].order || 0) - (milestones[b].order || 0); });
   }
@@ -478,7 +491,9 @@
     if (!ids.length) {
       var empty = el('div', 'empty-state');
       empty.appendChild(el('h3', null, 'No milestones yet'));
-      empty.appendChild(el('p', null, 'Add your first milestone to start tracking tasks.'));
+      empty.appendChild(el('p', null, isAdmin
+        ? 'Add your first milestone to start tracking tasks.'
+        : 'Nothing has been set up on this project yet.'));
       wrap.appendChild(empty);
       return;
     }
@@ -491,12 +506,14 @@
       card.style.borderLeftColor = color;
       var top = el('div', 'm-card-top');
       top.appendChild(el('h3', null, esc(m.name)));
-      var actions = el('div', 'm-card-actions');
-      var editBtn = el('button', 'mini-btn', '✎');
-      editBtn.title = 'Rename / delete milestone';
-      editBtn.addEventListener('click', function () { openMilestoneModal(id); });
-      actions.appendChild(editBtn);
-      top.appendChild(actions);
+      if (isAdmin) {
+        var actions = el('div', 'm-card-actions');
+        var editBtn = el('button', 'mini-btn', '✎');
+        editBtn.title = 'Rename / delete milestone';
+        editBtn.addEventListener('click', function () { openMilestoneModal(id); });
+        actions.appendChild(editBtn);
+        top.appendChild(actions);
+      }
       card.appendChild(top);
       card.appendChild(el('div', 'm-count', c.done + ' / ' + c.total + ' tasks done'));
       var fbItems = feedbackForMilestone(id);
@@ -856,8 +873,9 @@
 
   /* ---------------- modals ---------------- */
   function openMilestoneModal(id) {
+    if (!isAdmin) { showToast('Only the developer link can change milestones', true); return; }
     var editing = !!id;
-    var m = editing ? milestones[id] : { name: '', order: (orderedMilestoneIds().length + 1) * 10 };
+    var m = editing ? milestones[id] : { name: '', order: nextMilestoneOrder() };
     var box = el('div');
     box.appendChild(el('h3', null, editing ? 'Edit milestone' : 'New milestone'));
     var field = el('div', 'field');
@@ -1107,6 +1125,13 @@
   function deleteMilestoneDoc(id) {
     delete milestones[id];
     delete tasksByMilestone[id];
+    // the server drops this milestone's feedback too; mirror that here so the
+    // feedback view does not sit on rows pointing at a milestone that is gone
+    Object.keys(feedback).forEach(function (fid) {
+      if (feedback[fid].milestoneId === id) delete feedback[fid];
+    });
+    // a filter aimed at the deleted milestone would show an empty page
+    if (milestoneFilter === id) milestoneFilter = 'all';
     renderAll();
     push(api('/milestones/' + encodeURIComponent(id), { method: 'DELETE' }), 'Milestone');
   }
