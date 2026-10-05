@@ -4,7 +4,7 @@ const Task    = require('../models/Task');
 const Milestone = require('../models/Milestone');
 const { requireAdmin } = require('../middleware/auth');
 
-const EDITABLE = ['text', 'status', 'priority', 'owner', 'startDate', 'dueDate', 'notes', 'clientFeedback', 'milestoneId'];
+const EDITABLE = ['text', 'status', 'priority', 'owner', 'startDate', 'dueDate', 'clientFeedback', 'milestoneId'];
 
 function newId(prefix) {
   return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);

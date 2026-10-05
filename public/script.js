@@ -297,7 +297,7 @@
     tile('todo-n', 'Not Started', totals.todo, share(totals.todo));
     tile('accent-n', 'Overall %', pct + '%', pct);
     var fbCount = Object.keys(feedback).length;
-    tile('', 'Client Feedback', fbCount, null, fbCount + (fbCount === 1 ? ' note' : ' notes') + ' total');
+    tile('', 'Client Feedback', fbCount, null, fbCount + (fbCount === 1 ? ' message' : ' messages') + ' total');
   }
 
   function renderChart() {
@@ -407,7 +407,7 @@
     if (milestoneFilter !== 'all' && mid !== milestoneFilter) return false;
     if (statusFilter !== 'all' && t.status !== statusFilter) return false;
     if (searchText) {
-      var hay = ((t.text || '') + ' ' + (t.notes || '') + ' ' + (t.clientFeedback || '')).toLowerCase();
+      var hay = ((t.text || '') + ' ' + (t.clientFeedback || '')).toLowerCase();
       if (hay.indexOf(searchText) === -1) return false;
     }
     return true;
@@ -516,21 +516,14 @@
     startTd.appendChild(startInput);
     tr.appendChild(startTd);
 
-    // notes and client feedback share one column and open a small editor,
-    // which keeps the table inside the window instead of scrolling sideways
-    var noteTd = document.createElement('td');
-    var noteCell = el('div', 'note-cell');
-    var notesBtn = el('button', 'cell-btn' + (t.notes ? '' : ' empty'), esc(t.notes || '— add note'));
-    notesBtn.title = t.notes || 'Add a note';
-    notesBtn.addEventListener('click', function () { openTaskDetailModal(milestoneId, taskDocId, 'notes'); });
-    var fbBtn = el('button', 'bubble-btn' + (t.clientFeedback ? ' has' : ''), '💬');
+    // client feedback opens a small editor, which keeps the table inside the
+    // window instead of scrolling sideways
+    var fbTd = document.createElement('td');
+    var fbBtn = el('button', 'cell-btn' + (t.clientFeedback ? '' : ' empty'), esc(t.clientFeedback || '— add feedback'));
     fbBtn.title = t.clientFeedback || 'Add client feedback';
-    fbBtn.setAttribute('aria-label', 'Client feedback');
-    fbBtn.addEventListener('click', function () { openTaskDetailModal(milestoneId, taskDocId, 'feedback'); });
-    noteCell.appendChild(notesBtn);
-    noteCell.appendChild(fbBtn);
-    noteTd.appendChild(noteCell);
-    tr.appendChild(noteTd);
+    fbBtn.addEventListener('click', function () { openTaskFeedbackModal(milestoneId, taskDocId); });
+    fbTd.appendChild(fbBtn);
+    tr.appendChild(fbTd);
 
     var delTd = document.createElement('td'); delTd.className = 'row-del';
     var del = el('button', 'mini-btn', '✕'); del.title = 'Delete task';
@@ -637,23 +630,15 @@
     setTimeout(function () { nameInput.focus(); }, 10);
   }
 
-  function openTaskDetailModal(milestoneId, taskDocId, focusField) {
+  function openTaskFeedbackModal(milestoneId, taskDocId) {
     var t = tasksFor(milestoneId)[taskDocId];
     if (!t) return;
     var box = el('div');
-    box.appendChild(el('h3', null, 'Notes &amp; client feedback'));
+    box.appendChild(el('h3', null, 'Client feedback'));
     box.appendChild(el('p', 'modal-sub', esc(t.text || '')));
 
-    var notesField = el('div', 'field');
-    notesField.appendChild(el('label', null, 'Internal notes'));
-    var notesInput = document.createElement('textarea');
-    notesInput.value = t.notes || '';
-    notesInput.placeholder = 'Status, blockers, decisions…';
-    notesField.appendChild(notesInput);
-    box.appendChild(notesField);
-
     var fbField = el('div', 'field');
-    fbField.appendChild(el('label', null, 'Client feedback'));
+    fbField.appendChild(el('label', null, 'Feedback on this task'));
     var fbInput = document.createElement('textarea');
     fbInput.value = t.clientFeedback || '';
     fbInput.placeholder = 'What the client said about this task…';
@@ -667,17 +652,15 @@
     cancel.addEventListener('click', closeModal);
     var save = el('button', 'btn primary', 'Save');
     save.addEventListener('click', function () {
-      var patch = {};
-      if (notesInput.value.trim() !== (t.notes || '')) patch.notes = notesInput.value.trim();
-      if (fbInput.value.trim() !== (t.clientFeedback || '')) patch.clientFeedback = fbInput.value.trim();
-      if (Object.keys(patch).length) writeTaskUpdate(milestoneId, taskDocId, patch);
+      var value = fbInput.value.trim();
+      if (value !== (t.clientFeedback || '')) writeTaskUpdate(milestoneId, taskDocId, { clientFeedback: value });
       closeModal();
     });
     right.appendChild(cancel); right.appendChild(save);
     actionsRow.appendChild(right);
     box.appendChild(actionsRow);
     openModal(box);
-    setTimeout(function () { (focusField === 'feedback' ? fbInput : notesInput).focus(); }, 10);
+    setTimeout(function () { fbInput.focus(); }, 10);
   }
 
   function openFeedbackModal() {
@@ -718,9 +701,9 @@
 
   /* ---------------- CSV export ---------------- */
   function exportCsv() {
-    var rows = [['S.No', 'Milestone', 'Task', 'Status', 'Priority', 'Start', 'Notes', 'Client Feedback']];
+    var rows = [['S.No', 'Milestone', 'Task', 'Status', 'Priority', 'Start', 'Client Feedback']];
     allTasksFlat().forEach(function (row, i) {
-      rows.push([i + 1, milestones[row.mid] ? milestones[row.mid].name : '', row.t.text || '', row.t.status || '', row.t.priority || '', row.t.startDate || '', row.t.notes || '', row.t.clientFeedback || '']);
+      rows.push([i + 1, milestones[row.mid] ? milestones[row.mid].name : '', row.t.text || '', row.t.status || '', row.t.priority || '', row.t.startDate || '', row.t.clientFeedback || '']);
     });
     var csv = rows.map(function (r) {
       return r.map(function (cell) {
@@ -774,7 +757,7 @@
     });
     var tid = uid('t');
     tasksByMilestone[milestoneId][tid] = {
-      taskId: maxId + 1, text: text, status: 'Not Started', priority: 'Medium', owner: '', startDate: '', dueDate: '', notes: '', clientFeedback: '', createdAt: Date.now()
+      taskId: maxId + 1, text: text, status: 'Not Started', priority: 'Medium', owner: '', startDate: '', dueDate: '', clientFeedback: '', createdAt: Date.now()
     };
     renderAll();
     push(api('/tasks', { method: 'POST', body: JSON.stringify({ id: tid, milestoneId: milestoneId, text: text }) }), 'Task');
