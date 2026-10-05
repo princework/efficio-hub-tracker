@@ -386,16 +386,7 @@ body.readonly .status-select, body.readonly .prio-select { padding-right: 11px; 
 .fb-status.resolved { background: var(--done-soft); color: var(--done); }
 .fb-msg { font-size: 15px; line-height: 1.6; color: var(--ink); white-space: pre-wrap; }
 .fb-meta { font-size: 12.5px; color: var(--ink-faint); margin-top: 10px; }
-.fb-reply { margin-top: 13px; padding: 12px 14px; border-left: 3px solid var(--gold); background: var(--surface-2); border-radius: 0 8px 8px 0; }
-.fb-reply-label { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); margin-bottom: 5px; }
-.fb-reply-text { font-size: 14.5px; line-height: 1.6; color: var(--ink); white-space: pre-wrap; }
-.fb-admin { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border-strong); }
-.fb-reply-input {
-  width: 100%; font-family: inherit; font-size: 14px; line-height: 1.5; padding: 10px 12px; border-radius: 9px;
-  border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); resize: vertical; min-height: 64px;
-}
-.fb-reply-input:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
-.fb-admin-btns { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.fb-admin-btns { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border-strong); flex-wrap: wrap; }
 .m-fb-count {
   font-family: inherit; font-size: 12.5px; font-weight: 600; margin-top: 12px; cursor: pointer;
   background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 5px 11px; color: var(--ink-soft);
@@ -416,3 +407,17 @@ body.readonly .status-select, body.readonly .prio-select { padding-right: 11px; 
 /* On Hold */
 .status-select.st-hold { background-color: var(--prio-med-soft); color: var(--prio-med); }
 .stat.hold-n .n, .stat.hold-n .meter span { color: var(--prio-med); }
+
+/* the task row's feedback cell */
+.fb-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.fb-cell-text {
+  font-size: 13px; line-height: 1.45; color: var(--ink); display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.fb-cell-meta { font-size: 11.5px; color: var(--ink-faint); }
+
+/* the task text reads as plain text until you click it */
+.task-text { font-size: 14.5px; font-weight: 500; line-height: 1.5; color: var(--ink); padding: 6px 8px; border: 1px solid transparent; border-radius: 8px; }
+body:not(.readonly) .task-text { cursor: text; }
+body:not(.readonly) .task-text:hover { border-color: var(--border-strong); background: var(--surface); }
+.task-text:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }

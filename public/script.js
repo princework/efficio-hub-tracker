@@ -242,13 +242,6 @@
     return m ? { code: m[1], title: m[2] } : { code: '', title: name || '' };
   }
 
-  function autoGrow(ta) {
-    if (!ta) return;
-    ta.style.height = 'auto';
-    var h = ta.scrollHeight;
-    if (!h) return;                       // not laid out yet (hidden view)
-    ta.style.height = Math.max(h, 34) + 'px';
-  }
   // A re-render rebuilds all 172 rows, which throws away the scroll position
   // and the focused control. This puts both back, so editing a row in the
   // middle of the table leaves you looking at that row.
@@ -284,16 +277,12 @@
     }
   }
 
-  function sizeTaskEditors() {
-    [].slice.call(document.querySelectorAll('#task-tbody textarea')).forEach(autoGrow);
-  }
 
   function switchView(view) {
     activeView = view;
     document.querySelectorAll('.nav-item[data-view]').forEach(function (b) { b.classList.toggle('active', b.dataset.view === view); });
     document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + view); });
-    // a hidden textarea reports scrollHeight 0, so re-fit once the view is visible
-    if (view === 'tasks') sizeTaskEditors();
+    renderActiveView();
   }
   document.querySelectorAll('.nav-item[data-view]').forEach(function (b) {
     b.addEventListener('click', function () { switchView(b.dataset.view); });
@@ -546,7 +535,7 @@
     if (priorityFilter !== 'all' && (t.priority || 'Medium') !== priorityFilter) return false;
     if (searchText) {
       var hay = ((t.text || '') + ' ' + feedbackFor(tid).map(function (f) {
-        return f.author + ' ' + f.message + ' ' + (f.reply || '');
+        return f.author + ' ' + f.message;
       }).join(' ')).toLowerCase();
       if (hay.indexOf(searchText) === -1) return false;
     }
@@ -559,12 +548,12 @@
     var all = allTasksFlat().filter(function (row) { return matchesFilters(row.mid, row.tid, row.t); });
     document.getElementById('task-count').textContent = all.length + (all.length === 1 ? ' task' : ' tasks');
     var sno = 0;
+    var frag = document.createDocumentFragment();
     all.forEach(function (row) {
       sno++;
-      tbody.appendChild(buildTaskRow(sno, row.mid, row.tid, row.t));
+      frag.appendChild(buildTaskRow(sno, row.mid, row.tid, row.t));
     });
-    // size every editor to its full content now that the rows are in the DOM
-    sizeTaskEditors();
+    tbody.appendChild(frag);
     applyAccess();
     if (!all.length) {
       var tr = document.createElement('tr');
@@ -642,28 +631,8 @@
       card.appendChild(el('div', 'fb-msg', esc(f.message || '')));
       card.appendChild(el('div', 'fb-meta', '— ' + esc(f.author || 'Anonymous') + ' · ' + timeAgo(f.createdAt)));
 
-      if (f.reply) {
-        var reply = el('div', 'fb-reply');
-        reply.appendChild(el('div', 'fb-reply-label', 'Team reply' + (f.repliedAt ? ' · ' + timeAgo(f.repliedAt) : '')));
-        reply.appendChild(el('div', 'fb-reply-text', esc(f.reply)));
-        card.appendChild(reply);
-      }
-
       if (isAdmin) {
-        var admin = el('div', 'fb-admin');
-        var replyInput = document.createElement('textarea');
-        replyInput.className = 'fb-reply-input';
-        replyInput.placeholder = 'Write a reply the client will see…';
-        replyInput.maxLength = 2000;
-        replyInput.value = f.reply || '';
-        admin.appendChild(replyInput);
-
         var btns = el('div', 'fb-admin-btns');
-        var save = el('button', 'btn small primary', 'Save reply');
-        save.addEventListener('click', function () {
-          var value = replyInput.value.trim();
-          writeFeedbackUpdate(row.id, { reply: value }, value ? 'Reply saved' : 'Reply removed');
-        });
         var toggle = el('button', 'btn small', resolved ? 'Reopen' : '✓ Mark resolved');
         toggle.addEventListener('click', function () {
           writeFeedbackUpdate(row.id, { status: resolved ? 'Open' : 'Resolved' }, resolved ? 'Reopened' : 'Marked resolved');
@@ -671,9 +640,8 @@
         var del = el('button', 'btn small danger', 'Delete');
         del.style.marginLeft = 'auto';
         bindConfirm(del, function () { deleteFeedbackDoc(row.id); });
-        btns.appendChild(save); btns.appendChild(toggle); btns.appendChild(del);
-        admin.appendChild(btns);
-        card.appendChild(admin);
+        btns.appendChild(toggle); btns.appendChild(del);
+        card.appendChild(btns);
       }
 
       wrap.appendChild(card);
@@ -699,7 +667,7 @@
     if (priorityFilter !== 'all' && (t.priority || 'Medium') !== priorityFilter) return false;
     if (searchText) {
       var hay = ((t.text || '') + ' ' + feedbackFor(tid).map(function (f) {
-        return f.author + ' ' + f.message + ' ' + (f.reply || '');
+        return f.author + ' ' + f.message;
       }).join(' ')).toLowerCase();
       if (hay.indexOf(searchText) === -1) return false;
     }
@@ -712,12 +680,12 @@
     var all = allTasksFlat().filter(function (row) { return matchesFilters(row.mid, row.tid, row.t); });
     document.getElementById('task-count').textContent = all.length + (all.length === 1 ? ' task' : ' tasks');
     var sno = 0;
+    var frag = document.createDocumentFragment();
     all.forEach(function (row) {
       sno++;
-      tbody.appendChild(buildTaskRow(sno, row.mid, row.tid, row.t));
+      frag.appendChild(buildTaskRow(sno, row.mid, row.tid, row.t));
     });
-    // size every editor to its full content now that the rows are in the DOM
-    sizeTaskEditors();
+    tbody.appendChild(frag);
     applyAccess();
     if (!all.length) {
       var tr = document.createElement('tr');
@@ -726,6 +694,36 @@
       tr.appendChild(td);
       tbody.appendChild(tr);
     }
+  }
+
+  function editTaskText(td, milestoneId, taskDocId) {
+    var task = tasksFor(milestoneId)[taskDocId];
+    if (!task) return;
+    var area = document.createElement('textarea');
+    area.className = 'task-text-input';
+    area.value = task.text || '';
+    td.innerHTML = '';
+    td.appendChild(area);
+    area.style.height = Math.max(area.scrollHeight, 34) + 'px';
+    area.addEventListener('input', function () {
+      area.style.height = 'auto';
+      area.style.height = Math.max(area.scrollHeight, 34) + 'px';
+    });
+    area.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { area.value = task.text || ''; area.blur(); }
+    });
+    area.addEventListener('blur', function () {
+      var v = area.value.trim();
+      if (v && v !== task.text) writeTaskUpdate(milestoneId, taskDocId, { text: v });
+      var view = el('div', 'task-text', esc(v || task.text || ''));
+      view.tabIndex = 0;
+      view.title = 'Click to edit';
+      view.addEventListener('click', function () { editTaskText(td, milestoneId, taskDocId); });
+      td.innerHTML = '';
+      td.appendChild(view);
+    });
+    area.focus();
+    area.setSelectionRange(area.value.length, area.value.length);
   }
 
   function buildTaskRow(sno, milestoneId, taskDocId, t) {
@@ -761,15 +759,19 @@
     mTd.appendChild(mCell);
     tr.appendChild(mTd);
 
+    // plain text by default; it becomes a textarea only while you edit it, so
+    // the table does not carry 172 auto-sizing textareas
     var textTd = document.createElement('td');
-    var textInput = document.createElement('textarea');
-    textInput.className = 'task-text-input'; textInput.value = t.text || ''; textInput.rows = 1;
-    textInput.addEventListener('input', function () { autoGrow(textInput); });
-    textInput.addEventListener('blur', function () {
-      var v = textInput.value.trim();
-      if (v && v !== t.text) writeTaskUpdate(milestoneId, taskDocId, { text: v });
-    });
-    textTd.appendChild(textInput);
+    var textView = el('div', 'task-text', esc(t.text || ''));
+    if (isAdmin) {
+      textView.tabIndex = 0;
+      textView.title = 'Click to edit';
+      textView.addEventListener('click', function () { editTaskText(textTd, milestoneId, taskDocId); });
+      textView.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); editTaskText(textTd, milestoneId, taskDocId); }
+      });
+    }
+    textTd.appendChild(textView);
     tr.appendChild(textTd);
 
     var statusTd = document.createElement('td');
@@ -817,18 +819,26 @@
 
     // client feedback opens a small editor, which keeps the table inside the
     // window instead of scrolling sideways
-    // feedback on this task lives in its own thread, which anyone can add to
+    // the latest feedback shows in the row; the bubble adds to the thread
     var fbTd = document.createElement('td');
     var items = feedbackFor(taskDocId);
-    var openCount = items.filter(function (f) { return f.status !== 'Resolved'; }).length;
+    var fbCell = el('div', 'fb-cell');
+    if (items.length) {
+      var latest = items[0];
+      var note = el('div', 'fb-cell-text', esc(latest.message));
+      note.title = items.map(function (f) { return f.author + ': ' + f.message; }).join('\n\n');
+      fbCell.appendChild(note);
+      var meta = el('div', 'fb-cell-meta', esc(latest.author || '') +
+        (items.length > 1 ? ' · +' + (items.length - 1) + ' more' : ''));
+      fbCell.appendChild(meta);
+    }
     var fbBtn = el('button', 'bubble-btn' + (items.length ? ' has' : ''), '💬');
     if (items.length) fbBtn.appendChild(el('span', 'n', String(items.length)));
-    fbBtn.title = items.length
-      ? items.length + ' feedback item' + (items.length === 1 ? '' : 's') + (openCount ? ' · ' + openCount + ' open' : '')
-      : 'Give feedback on this task';
+    fbBtn.title = items.length ? 'Add to this task’s feedback' : 'Give feedback on this task';
     fbBtn.setAttribute('aria-label', fbBtn.title);
     fbBtn.addEventListener('click', function () { openFeedbackModal(milestoneId, taskDocId); });
-    fbTd.appendChild(fbBtn);
+    fbCell.appendChild(fbBtn);
+    fbTd.appendChild(fbCell);
     tr.appendChild(fbTd);
 
     var delTd = document.createElement('td'); delTd.className = 'row-del';
@@ -1062,7 +1072,7 @@
     var rows = [['S.No', 'Milestone', 'Task', 'Status', 'Priority', 'Start', 'Client Feedback']];
     allTasksFlat().forEach(function (row, i) {
       var notes = feedbackFor(row.tid).map(function (f) {
-        return f.author + ': ' + f.message + (f.reply ? ' | Reply: ' + f.reply : '');
+        return f.author + ': ' + f.message;
       }).join(' — ');
       rows.push([i + 1, milestones[row.mid] ? milestones[row.mid].name : '', row.t.text || '', row.t.status || '', row.t.priority || '', row.t.startDate || '', notes]);
     });
@@ -1127,7 +1137,16 @@
     var bucket = tasksByMilestone[milestoneId];
     if (!bucket || !bucket[taskDocId]) return;
     bucket[taskDocId] = Object.assign({}, bucket[taskDocId], data);
-    withTablePosition(renderAll);
+
+    // The row already shows the new value, so only the summaries are redrawn.
+    // The table is rebuilt just when a filter would now exclude the row.
+    renderSummaries();
+    markStale('tasks');
+    var hidesRow = (data.status !== undefined && statusFilter !== 'all')
+      || (data.priority !== undefined && priorityFilter !== 'all')
+      || data.milestoneId !== undefined;
+    if (hidesRow) withTablePosition(renderTaskTable);
+
     push(api('/tasks/' + encodeURIComponent(taskDocId), { method: 'PATCH', body: JSON.stringify(data) }), 'Task');
   }
   function deleteTaskDoc(milestoneId, taskDocId) {
@@ -1152,13 +1171,13 @@
     var id = uid('f');
     feedback[id] = {
       milestoneId: item.milestoneId, taskId: item.taskId || null, author: item.author,
-      message: item.message, status: 'Open', reply: '', repliedAt: null, createdAt: Date.now()
+      message: item.message, status: 'Open', createdAt: Date.now()
     };
     lastWriteAt = Date.now();
     renderAll();
     api('/feedback', { method: 'POST', body: JSON.stringify(item) })
       .then(function (saved) {
-        // keep the server's id so a later reply or delete hits the right document
+        // keep the server's id so a later status change or delete hits the right document
         delete feedback[id];
         feedback[saved._id] = saved;
         renderAll();
@@ -1174,8 +1193,9 @@
   function writeFeedbackUpdate(id, data, okMsg) {
     if (!feedback[id]) return;
     feedback[id] = Object.assign({}, feedback[id], data);
-    if (data.reply !== undefined) feedback[id].repliedAt = data.reply ? Date.now() : null;
-    renderAll();
+    renderSummaries();
+    markStale('feedback');
+    renderFeedbackList();
     push(api('/feedback/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify(data) })
       .then(function () { if (okMsg) showToast(okMsg); }), 'Feedback');
   }
@@ -1185,16 +1205,34 @@
     push(api('/feedback/' + encodeURIComponent(id), { method: 'DELETE' }), 'Feedback');
   }
 
-  function renderAll() {
-    renderHeader();
+  // Rendering is split so a click only pays for what it changes: the summaries
+  // are cheap, the task table is not, and a view that is not on screen waits
+  // until it is opened.
+  var stale = { dashboard: true, milestones: true, tasks: true, feedback: true };
+
+  function markStale(except) {
+    Object.keys(stale).forEach(function (k) { if (k !== except) stale[k] = true; });
+  }
+
+  function renderSummaries() {
     renderNavCounts();
     renderSidebarMilestones();
     renderStats();
-    renderChart();
-    renderMilestonesGrid();
+  }
+
+  function renderActiveView() {
+    if (activeView === 'dashboard' && stale.dashboard) { renderChart(); stale.dashboard = false; }
+    else if (activeView === 'milestones' && stale.milestones) { renderMilestonesGrid(); stale.milestones = false; }
+    else if (activeView === 'tasks' && stale.tasks) { renderTaskTable(); stale.tasks = false; }
+    else if (activeView === 'feedback' && stale.feedback) { renderFeedbackList(); stale.feedback = false; }
+  }
+
+  function renderAll() {
+    renderHeader();
+    renderSummaries();
     populateMilestoneSelects();
-    renderTaskTable();
-    renderFeedbackList();
+    markStale();
+    renderActiveView();
     applyAccess();
   }
 
@@ -1230,6 +1268,7 @@
       document.getElementById('milestone-filter').value = 'all';
       renderTaskTable();
       renderSidebarMilestones();
+      stale.feedback = true;
     });
     document.getElementById('add-task-btn').addEventListener('click', openAddTaskModal);
     document.getElementById('fb-status-filter').addEventListener('change', function (e) {
@@ -1253,7 +1292,6 @@
       var next = currentTheme() === 'dark' ? 'light' : 'dark';
       applyTheme(next);
       try { localStorage.setItem('efficio_theme', next); } catch (e) {}
-      sizeTaskEditors();
     });
 
     document.getElementById('exit-dev').addEventListener('click', exitDeveloperMode);
@@ -1266,21 +1304,12 @@
         document.getElementById('load-error').hidden = true;
         renderAll();
         startPolling();
-        if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeTaskEditors);
       })
       .catch(function (err) {
         setLive('off');
         showLoadError(err);
       });
 
-    // re-fit the inline editors when the column widths change
-    var resizeTimer;
-    window.addEventListener('resize', function () {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(function () {
-        sizeTaskEditors();
-      }, 120);
-    });
 
   }
 

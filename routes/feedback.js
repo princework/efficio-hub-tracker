@@ -39,10 +39,6 @@ router.patch('/:id', requireAdmin, async (req, res) => {
   try {
     const update = {};
     if (req.body.status !== undefined) update.status = req.body.status;
-    if (req.body.reply !== undefined) {
-      update.reply = String(req.body.reply).trim();
-      update.repliedAt = update.reply ? Date.now() : null;
-    }
     const item = await Feedback.findByIdAndUpdate(req.params.id, { $set: update }, { new: true, runValidators: true }).lean();
     if (!item) return res.status(404).json({ success: false, message: 'Feedback not found' });
     res.json({ success: true, data: item });
