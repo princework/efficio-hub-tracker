@@ -36,6 +36,11 @@
     if (html != null) e.innerHTML = html;
     return e;
   }
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    var p = String(iso).split('-');
+    return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso;
+  }
   function fmtTime(ts) {
     if (!ts) return '';
     try { return new Date(ts).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
@@ -512,19 +517,30 @@
     tr.appendChild(prioTd);
 
     var startTd = document.createElement('td');
-    var startInput = document.createElement('input');
-    startInput.type = 'date'; startInput.className = 'date-input'; startInput.value = t.startDate || '';
-    startInput.addEventListener('change', function () { writeTaskUpdate(milestoneId, taskDocId, { startDate: startInput.value }); });
-    startTd.appendChild(startInput);
+    if (isAdmin) {
+      var startInput = document.createElement('input');
+      startInput.type = 'date'; startInput.className = 'date-input'; startInput.value = t.startDate || '';
+      startInput.addEventListener('change', function () { writeTaskUpdate(milestoneId, taskDocId, { startDate: startInput.value }); });
+      startTd.appendChild(startInput);
+    } else {
+      // the client link reads as plain text rather than an empty date field
+      startTd.appendChild(el('span', 'cell-text', fmtDate(t.startDate)));
+    }
     tr.appendChild(startTd);
 
     // client feedback opens a small editor, which keeps the table inside the
     // window instead of scrolling sideways
     var fbTd = document.createElement('td');
-    var fbBtn = el('button', 'cell-btn' + (t.clientFeedback ? '' : ' empty'), esc(t.clientFeedback || '— add feedback'));
-    fbBtn.title = t.clientFeedback || 'Add client feedback';
-    fbBtn.addEventListener('click', function () { openTaskFeedbackModal(milestoneId, taskDocId); });
-    fbTd.appendChild(fbBtn);
+    if (isAdmin) {
+      var fbBtn = el('button', 'cell-btn' + (t.clientFeedback ? '' : ' empty'), esc(t.clientFeedback || '— add feedback'));
+      fbBtn.title = t.clientFeedback || 'Add client feedback';
+      fbBtn.addEventListener('click', function () { openTaskFeedbackModal(milestoneId, taskDocId); });
+      fbTd.appendChild(fbBtn);
+    } else {
+      var fbText = el('span', 'cell-text' + (t.clientFeedback ? '' : ' empty'), esc(t.clientFeedback || '—'));
+      fbText.title = t.clientFeedback || '';
+      fbTd.appendChild(fbText);
+    }
     tr.appendChild(fbTd);
 
     var delTd = document.createElement('td'); delTd.className = 'row-del';

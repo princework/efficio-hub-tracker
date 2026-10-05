@@ -210,13 +210,18 @@ table.task-table th:nth-child(8), table.task-table td:nth-child(8) { width: 3%; 
 
 .task-sno { font-size: 13.5px; color: var(--ink-faint); }
 
-/* milestone cell: colour-coded code + name, select laid over it */
-.m-cell { position: relative; border-radius: 8px; padding: 4px 6px; border: 1px solid transparent; }
-.m-cell:hover { border-color: var(--border-strong); background: var(--surface); }
-.m-cell:focus-within { border-color: var(--focus); }
-.m-cell-label { font-size: 13.5px; line-height: 1.4; color: var(--ink-soft); }
-.m-cell-label .m-code { margin-right: 6px; }
-.m-select.overlay { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+/* milestone cell: plain text — bold code + name — with the select laid over it */
+.m-cell { position: relative; border-radius: 7px; padding: 3px 4px; }
+.m-cell-label {
+  font-size: 13.5px; line-height: 1.45; color: var(--ink-soft);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.m-cell-label .m-code { margin-right: 6px; color: var(--ink); }
+.m-cell:hover .m-cell-label { color: var(--ink); }
+.m-cell:focus-within { box-shadow: 0 0 0 2px var(--focus); }
+/* the real control sits invisibly on top so the cell stays a line of text */
+.m-select.overlay { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0 !important; cursor: pointer; }
+.m-select.overlay:disabled { cursor: default; }
 .m-select { font-family: inherit; font-size: 14px; border-radius: 9px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); padding: 10px 11px; cursor: pointer; }
 
 /* client feedback opens an editor instead of sitting in the row */
@@ -321,10 +326,10 @@ body.readonly .m-card-actions,
 body.readonly #add-milestone-btn,
 body.readonly #settings-btn,
 body.readonly .feedback-card .row-del { display: none; }
-body.readonly .m-cell:hover { border-color: transparent; background: transparent; }
+body.readonly .m-cell:hover .m-cell-label { color: var(--ink-soft); }
 body.readonly .task-text-input:hover, body.readonly .cell-btn:hover { border-color: transparent; background: transparent; }
 body.readonly .status-select, body.readonly .prio-select { padding-right: 11px; background-image: none; }
-.task-table select:disabled, .task-table input:disabled, .task-table textarea:disabled, .cell-btn:disabled {
+.task-table select:disabled:not(.overlay), .task-table input:disabled, .task-table textarea:disabled, .cell-btn:disabled {
   opacity: 1; cursor: default; -webkit-text-fill-color: currentColor;
 }
 .date-input:disabled { border-color: transparent; background: transparent; }
@@ -347,3 +352,10 @@ body.readonly .status-select, body.readonly .prio-select { padding-right: 11px; 
 .load-error[hidden] { display: none; }
 .load-error h3 { font-size: 19px; font-weight: 700; margin-bottom: 8px; }
 .load-error p { font-size: 14.5px; line-height: 1.6; color: var(--ink-soft); margin: 0 0 18px; }
+
+/* read-only cells render as text, not as emptied-out controls */
+.cell-text {
+  font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.cell-text.empty { color: var(--ink-faint); }
