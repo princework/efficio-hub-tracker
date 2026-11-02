@@ -583,7 +583,7 @@
     applyAccess();
     if (!all.length) {
       var tr = document.createElement('tr');
-      var td = document.createElement('td'); td.colSpan = 8;
+      var td = document.createElement('td'); td.colSpan = 9;
       td.innerHTML = '<span style="display:block;padding:18px 10px;color:var(--ink-faint);font-size:14.5px;">No tasks match the current filters.</span>';
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -710,7 +710,7 @@
     applyAccess();
     if (!all.length) {
       var tr = document.createElement('tr');
-      var td = document.createElement('td'); td.colSpan = 8;
+      var td = document.createElement('td'); td.colSpan = 9;
       td.innerHTML = '<span style="display:block;padding:18px 10px;color:var(--ink-faint);font-size:14.5px;">No tasks match the current filters.</span>';
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -827,16 +827,32 @@
     tr.appendChild(prioTd);
 
     var startTd = document.createElement('td');
+    var endTd = document.createElement('td');
     if (isAdmin) {
-      var startInput = document.createElement('input');
-      startInput.type = 'date'; startInput.className = 'date-input'; startInput.value = t.startDate || '';
-      startInput.addEventListener('change', function () { writeTaskUpdate(milestoneId, taskDocId, { startDate: startInput.value }); });
+      var startInput = dateInput(t.startDate, 'Start date');
+      var endInput = dateInput(t.dueDate, 'End date');
+      startInput.max = endInput.value;
+      endInput.min = startInput.value;
+      // a date on the wrong side of the other one is outlined and not saved
+      startInput.addEventListener('change', function () {
+        if (!startInput.checkValidity()) return;
+        endInput.min = startInput.value;
+        writeTaskUpdate(milestoneId, taskDocId, { startDate: startInput.value });
+      });
+      endInput.addEventListener('change', function () {
+        if (!endInput.checkValidity()) return;
+        startInput.max = endInput.value;
+        writeTaskUpdate(milestoneId, taskDocId, { dueDate: endInput.value });
+      });
       startTd.appendChild(startInput);
+      endTd.appendChild(endInput);
     } else {
       // the client link reads as plain text rather than an empty date field
       startTd.appendChild(el('span', 'cell-text', fmtDate(t.startDate)));
+      endTd.appendChild(el('span', 'cell-text', fmtDate(t.dueDate)));
     }
     tr.appendChild(startTd);
+    tr.appendChild(endTd);
 
     // client feedback opens a small editor, which keeps the table inside the
     // window instead of scrolling sideways
@@ -869,6 +885,13 @@
     tr.appendChild(delTd);
 
     return tr;
+  }
+
+  function dateInput(value, label) {
+    var input = document.createElement('input');
+    input.type = 'date'; input.className = 'date-input'; input.value = value || '';
+    input.setAttribute('aria-label', label);
+    return input;
   }
 
   /* ---------------- modals ---------------- */
@@ -1077,12 +1100,12 @@
 
   /* ---------------- CSV export ---------------- */
   function exportCsv() {
-    var rows = [['S.No', 'Milestone', 'Task', 'Status', 'Priority', 'Start', 'Client Feedback']];
+    var rows = [['S.No', 'Milestone', 'Task', 'Status', 'Priority', 'Start', 'End', 'Client Feedback']];
     allTasksFlat().forEach(function (row, i) {
       var notes = feedbackFor(row.tid).map(function (f) {
         return f.message;
       }).join(' — ');
-      rows.push([i + 1, milestones[row.mid] ? milestones[row.mid].name : '', row.t.text || '', row.t.status || '', row.t.priority || '', row.t.startDate || '', notes]);
+      rows.push([i + 1, milestones[row.mid] ? milestones[row.mid].name : '', row.t.text || '', row.t.status || '', row.t.priority || '', row.t.startDate || '', row.t.dueDate || '', notes]);
     });
     var csv = rows.map(function (r) {
       return r.map(function (cell) {
